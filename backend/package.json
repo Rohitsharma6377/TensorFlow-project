@@ -26,10 +26,11 @@
     "dev": "nodemon index.js",
     "start": "node index.js",
     "lint": "echo 'no lint configured'",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "seed": "node ./src/scripts/seed.js"
   },
   "dependencies": {
-    "@tensorflow/tfjs-node": "^4.20.0",
+    "@tensorflow/tfjs": "^4.20.0",
     "razorpay": "^2.9.4",
     "stripe": "^16.8.0",
     "node-cron": "^3.0.3",

@@ -4,12 +4,26 @@ const Escrow = require('../models/Escrow');
 const Order = require('../models/Order');
 const { asyncHandler } = require('../utils/async');
 const auth = require('../middleware/auth');
+const DeliveryPartner = require('../models/DeliveryPartner');
+const { getAdapter } = require('../services/delivery');
 
 const router = express.Router();
 
 // Create shipment (seller/admin)
 router.post('/', auth(['seller', 'admin', 'superadmin']), asyncHandler(async (req, res) => {
-  const s = await Shipment.create(req.body);
+  // expected req.body: { orderId, shop, partner, shipmentPayload }
+  const { orderId, shop, partner, shipmentPayload } = req.body;
+  let trackingNumber, eta;
+  if (partner) {
+    const dp = await DeliveryPartner.findById(partner);
+    if (!dp) return res.status(400).json({ success: false, message: 'Invalid partner' });
+    const adapter = getAdapter(dp?.settings?.provider, dp?.settings || {});
+    const order = await Order.findById(orderId);
+    const result = await adapter.createShipment(order, shop, shipmentPayload || {});
+    trackingNumber = result.trackingNumber;
+    eta = result.eta;
+  }
+  const s = await Shipment.create({ orderId, shop, partner, trackingNumber, status: 'created', eta, deliveryCost: req.body.deliveryCost });
   res.status(201).json({ success: true, shipment: s });
 }));
 

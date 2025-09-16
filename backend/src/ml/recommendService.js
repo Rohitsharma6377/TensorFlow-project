@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const tf = require('@tensorflow/tfjs-node');
+const tf = require('@tensorflow/tfjs');
 
 const Product = require('../models/Product');
 const Post = require('../models/Post');
