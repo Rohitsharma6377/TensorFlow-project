@@ -4,36 +4,56 @@ import { AuthAPI } from '@/lib/api'
 export type Role = 'customer' | 'seller' | 'admin' | 'superadmin' | 'delivery'
 
 export interface AuthState {
-  token: string | null
+  accessToken: string | null
+  refreshToken: string | null
   user: any | null
   status: 'idle' | 'loading' | 'error'
   error?: string
 }
 
 const initialState: AuthState = {
-  token: null,
+  accessToken: (typeof window !== 'undefined' && localStorage.getItem('token')) || null,
+  refreshToken: (typeof window !== 'undefined' && localStorage.getItem('refreshToken')) || null,
   user: null,
   status: 'idle',
 }
 
-export const loginThunk = createAsyncThunk('auth/login', async (payload: { email: string; password: string }) => {
-  const res = await AuthAPI.login(payload)
-  if (typeof window !== 'undefined') localStorage.setItem('token', res.token)
-  return res
-})
+export const loginThunk = createAsyncThunk(
+  'auth/login',
+  async (payload: { usernameOrEmail: string; password: string }) => {
+    const res = await AuthAPI.login(payload.usernameOrEmail, payload.password)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('token', res.accessToken)
+      localStorage.setItem('refreshToken', res.refreshToken)
+    }
+    return res
+  }
+)
 
 export const signupThunk = createAsyncThunk(
   'auth/signup',
-  async (payload: { username: string; email: string; password: string; role?: string }) => {
-    const res = await AuthAPI.signup(payload)
-    if (typeof window !== 'undefined') localStorage.setItem('token', res.token)
+  async (payload: { username: string; email: string; password: string; role?: 'customer' | 'seller'; shopName?: string; phone?: string; address?: any }) => {
+    const res = await AuthAPI.register(payload)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('token', res.accessToken)
+      localStorage.setItem('refreshToken', res.refreshToken)
+    }
     return res
   }
 )
 
 export const meThunk = createAsyncThunk('auth/me', async () => {
-  const me = await AuthAPI.me()
+  const me = await AuthAPI.getCurrentUser()
   return me
+})
+
+export const guestLoginThunk = createAsyncThunk('auth/guest', async () => {
+  const res = await AuthAPI.loginAsGuest()
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('token', res.accessToken)
+    localStorage.setItem('refreshToken', res.refreshToken)
+  }
+  return res
 })
 
 const slice = createSlice({
@@ -41,12 +61,16 @@ const slice = createSlice({
   initialState,
   reducers: {
     logout(state) {
-      state.token = null
+      state.accessToken = null
+      state.refreshToken = null
       state.user = null
-      if (typeof window !== 'undefined') localStorage.removeItem('token')
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('token')
+        localStorage.removeItem('refreshToken')
+      }
     },
     setToken(state, action: PayloadAction<string | null>) {
-      state.token = action.payload
+      state.accessToken = action.payload
     },
   },
   extraReducers(builder) {
@@ -57,7 +81,8 @@ const slice = createSlice({
       })
       .addCase(loginThunk.fulfilled, (s, a) => {
         s.status = 'idle'
-        s.token = a.payload.token
+        s.accessToken = a.payload.accessToken
+        s.refreshToken = a.payload.refreshToken
         s.user = a.payload.user
       })
       .addCase(loginThunk.rejected, (s, a) => {
@@ -66,12 +91,19 @@ const slice = createSlice({
       })
       .addCase(signupThunk.fulfilled, (s, a) => {
         s.status = 'idle'
-        s.token = a.payload.token
+        s.accessToken = a.payload.accessToken
+        s.refreshToken = a.payload.refreshToken
         s.user = a.payload.user
       })
       .addCase(meThunk.fulfilled, (s, a) => {
         // backend returns { success, user }
         if ((a.payload as any)?.user) s.user = (a.payload as any).user
+      })
+      .addCase(guestLoginThunk.fulfilled, (s, a) => {
+        s.status = 'idle'
+        s.accessToken = a.payload.accessToken
+        s.refreshToken = a.payload.refreshToken
+        s.user = { ...a.payload.user, isGuest: true }
       })
   },
 })

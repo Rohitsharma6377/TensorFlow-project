@@ -6,6 +6,8 @@ const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/roles');
 const { asyncHandler } = require('../utils/async');
 const { upload, attachUploads } = require('../middleware/uploadAttach');
+const { cache } = require('../middleware/cache');
+const { delByPrefix } = require('../utils/redis');
 
 const router = express.Router();
 
@@ -50,6 +52,8 @@ router.post(
         attributes: req.body.attributes || {},
         status: req.body.status || 'active',
       });
+      // Invalidate caches for product lists and details
+      delByPrefix('cache:GET:/api/v1/products');
       return res.status(201).json({ success: true, product });
     } catch (err) {
       console.error('Create product error', err);
@@ -59,7 +63,7 @@ router.post(
 );
 
 // Public list/search products
-router.get('/', asyncHandler(async (req, res) => {
+router.get('/', cache(60), asyncHandler(async (req, res) => {
   const { q, shopId, status, category, price_min, price_max, sort, page = 1, limit = 50 } = req.query;
   const filter = {};
   if (q) filter.$text = { $search: q };
@@ -82,7 +86,7 @@ router.get('/', asyncHandler(async (req, res) => {
 }));
 
 // Get product by id
-router.get('/:id', asyncHandler(async (req, res) => {
+router.get('/:id', cache(60), asyncHandler(async (req, res) => {
   const p = await Product.findById(req.params.id);
   if (!p) return res.status(404).json({ success: false, message: 'Not found' });
   res.json({ success: true, product: p });
@@ -120,6 +124,9 @@ router.put(
       Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
 
       const updated = await Product.findByIdAndUpdate(req.params.id, updates, { new: true });
+      // Invalidate caches for this product and lists
+      delByPrefix(`cache:GET:/api/v1/products/${req.params.id}`);
+      delByPrefix('cache:GET:/api/v1/products');
       return res.json({ success: true, product: updated });
     } catch (err) {
       console.error('Update product error', err);
@@ -141,6 +148,9 @@ router.delete(
     const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
     if (!isOwner && !isAdmin) return res.status(403).json({ success: false, message: 'Forbidden' });
     await product.deleteOne();
+    // Invalidate caches for this product and lists
+    delByPrefix(`cache:GET:/api/v1/products/${req.params.id}`);
+    delByPrefix('cache:GET:/api/v1/products');
     res.json({ success: true });
   })
 );

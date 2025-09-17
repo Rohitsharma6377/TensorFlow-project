@@ -21,12 +21,15 @@ export function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     '/shop/:path*',
+    '/seller/:path*',
     '/admin/:path*',
     '/superadmin/:path*',
+    // customer area
+    '/user/:path*',
+    // legacy direct routes if still used anywhere
     '/cart',
     '/checkout',
     '/orders/:path*',
     '/wishlist',
-    '/profile',
   ],
 }

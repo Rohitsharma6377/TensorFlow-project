@@ -1,10 +1,10 @@
 "use client";
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppSelector } from '@/store'
-import type { Role } from '@/store/authSlice'
+import type { Role } from '@/store/slice/authSlice'
 
-export default function Protected({ children, roles }: { children: React.ReactNode; roles?: Role[] }) {
+export default function Protected({ children, roles }: { children: ReactNode; roles?: Role[] }) {
   const router = useRouter()
   const { token, user } = useAppSelector((s) => s.auth)
 

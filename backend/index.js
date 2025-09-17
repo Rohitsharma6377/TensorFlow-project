@@ -52,7 +52,18 @@ const Payout = require('./src/models/Payout');
 const app = express();
 
 // Core middleware
-app.use(cors({ origin: '*', credentials: true }));
+// CORS: when credentials are used, origin cannot be '*'.
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:3001';
+app.use(
+  cors({
+    origin: FRONTEND_ORIGIN,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+// Ensure preflight responses are handled
+app.options('*', cors({ origin: FRONTEND_ORIGIN, credentials: true }));
 // Stripe webhook requires raw body; register before JSON body parser
 app.use('/api/v1/payments/stripe/webhook', express.raw({ type: 'application/json' }));
 // Razorpay webhook also should use raw body for signature verification
@@ -123,7 +134,11 @@ async function start() {
 
   const server = http.createServer(app);
   const io = new Server(server, {
-    cors: { origin: '*', methods: ['GET', 'POST'] },
+    cors: {
+      origin: FRONTEND_ORIGIN,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    },
   });
 
   io.on('connection', (socket) => {
