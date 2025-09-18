@@ -117,7 +117,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto pb-20">
+    <div className="w-full max-w-none px-4 md:px-8 pb-20">
       {/* Stories */}
       <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
         <div className="flex space-x-4 p-4 overflow-x-auto scrollbar-hide">

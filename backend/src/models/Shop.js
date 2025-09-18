@@ -133,7 +133,6 @@ const ShopSchema = new mongoose.Schema(
 );
 
 // Indexes
-ShopSchema.index({ slug: 1 });
 ShopSchema.index({ 'address.location': '2dsphere' });
 ShopSchema.index({ name: 'text', description: 'text', 'tags': 'text' });
 

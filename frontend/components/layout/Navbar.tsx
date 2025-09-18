@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { BellIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
+import ChatPanel from '@/components/panels/ChatPanel';
+import NotificationsPanel from '@/components/panels/NotificationsPanel';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store';
@@ -80,6 +83,8 @@ const authNavItems: NavItem[] = [
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [openChat, setOpenChat] = useState(false);
+  const [openNotifs, setOpenNotifs] = useState(false);
   const dispatch = useAppDispatch();
   const { user, accessToken, status } = useAppSelector((s) => s.auth);
   const isAuthenticated = Boolean(user && accessToken);
@@ -100,10 +105,23 @@ export function Navbar() {
   // Close mobile menu when route changes
   useEffect(() => {
     setIsMobileMenuOpen(false);
+    setOpenChat(false);
+    setOpenNotifs(false);
   }, [pathname]);
+
+  // Keep role cookie in sync once auth is hydrated (covers InitAuth/me)
+  useEffect(() => {
+    if (user?.role && accessToken) {
+      try {
+        const maxAge = 60 * 60 * 24 * 7; // 7 days
+        document.cookie = `role=${user.role}; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
+      } catch {}
+    }
+  }, [user?.role, accessToken]);
 
   const handleLogout = () => {
     dispatch(logoutAction());
+    try { document.cookie = 'role=; Max-Age=0; Path=/'; } catch {}
     router.push('/');
   };
 
@@ -135,7 +153,7 @@ export function Navbar() {
         isScrolled ? 'shadow-sm' : ''
       )}
     >
-      <div className="container flex h-16 items-center justify-between">
+      <div className="w-full px-4 flex h-16 items-center justify-between">
         {/* Logo */}
         <div className="flex items-center
          gap-6 md:gap-10">
@@ -162,6 +180,23 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-4">
+          {/* Quick actions */}
+          <button
+            type="button"
+            onClick={() => setOpenNotifs((v) => !v)}
+            className="hidden md:inline-flex p-2 rounded-md text-muted-foreground hover:text-foreground"
+            aria-label="Open notifications"
+          >
+            <BellIcon className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpenChat((v) => !v)}
+            className="hidden md:inline-flex p-2 rounded-md text-muted-foreground hover:text-foreground"
+            aria-label="Open messages"
+          >
+            <PaperAirplaneIcon className="h-5 w-5 -rotate-45" />
+          </button>
           {/* Search Bar - Only show on desktop */}
           <div className="hidden md:flex items-center relative w-64">
             <Icons.search className="absolute left-3 h-4 w-4 text-muted-foreground" />
@@ -258,7 +293,7 @@ export function Navbar() {
       {/* Mobile Navigation */}
       {isMobileMenuOpen && (
         <div className="md:hidden border-t">
-          <div className="container py-4 space-y-4">
+          <div className="w-full px-4 py-4 space-y-4">
             <div className="relative w-full mb-4">
               <Icons.search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
@@ -324,6 +359,9 @@ export function Navbar() {
           </div>
         </div>
       )}
+      {/* Slide-over panels (portals will render above all) */}
+      <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} />
+      <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />
     </header>
   );
 }

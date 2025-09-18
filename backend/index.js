@@ -53,7 +53,8 @@ const app = express();
 
 // Core middleware
 // CORS: when credentials are used, origin cannot be '*'.
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:3001';
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:3000';
+console.log('[CORS] Frontend origin set to:', FRONTEND_ORIGIN);
 app.use(
   cors({
     origin: FRONTEND_ORIGIN,

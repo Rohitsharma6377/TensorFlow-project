@@ -35,20 +35,9 @@ function clearAuthTokens(): void {
   localStorage.removeItem('user');
 }
 
-// Enhanced API client with token refresh logic
-let isRefreshing = false;
-let failedQueue: Array<{resolve: (value?: any) => void; reject: (reason?: any) => void}> = [];
-
-const processQueue = (error: any, token: string | null = null) => {
-  failedQueue.forEach(prom => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-  failedQueue = [];
-};
+// Token refresh is disabled by default as backend doesn't issue refresh tokens.
+// If you later add refresh tokens, set ENABLE_REFRESH to true and implement mappings below.
+const ENABLE_REFRESH = false;
 
 // Main API function with enhanced error handling and token refresh
 interface ApiOptions extends RequestInit {
@@ -70,8 +59,13 @@ export async function api<T = any>(
     const token = getAuthToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      console.log('[API] Using Bearer token for request to', path)
+    } else {
+      console.log('[API] No Bearer token, relying on cookies for request to', path)
     }
   }
+
+  console.log('[API] Making request to', `${API_BASE}${path}`, 'with credentials: include')
 
   try {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -80,66 +74,17 @@ export async function api<T = any>(
       credentials: 'include',
     });
 
-    // Handle 401 Unauthorized - try to refresh token
+    // Handle 401 Unauthorized - optional refresh flow disabled
     if (res.status === 401 && !options.skipAuth && !options.isRetry) {
-      if (isRefreshing) {
-        // If we're already refreshing, queue the request
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then(token => {
-            headers['Authorization'] = `Bearer ${token}`;
-            return api(path, { ...options, headers, isRetry: true });
-          })
-          .catch(err => {
-            throw err;
-          });
+      console.log('[API] Received 401 Unauthorized for', path)
+      if (ENABLE_REFRESH) {
+        // Placeholder for future refresh-token implementation
+        // For now, fall through to error handling
       }
-
-      isRefreshing = true;
-      
-      try {
-        const refreshToken = getRefreshToken();
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
-
-        // Try to refresh the token
-        const data = await api<{ accessToken: string; refreshToken: string }>(
-          '/api/v1/auth/refresh-token',
-          {
-            method: 'POST',
-            body: JSON.stringify({ refreshToken }),
-            skipAuth: true,
-            isRetry: true,
-          }
-        );
-
-        // Store the new tokens
-        setAuthTokens(data.accessToken, data.refreshToken);
-        
-        // Update the authorization header
-        headers['Authorization'] = `Bearer ${data.accessToken}`;
-        
-        // Process queued requests
-        processQueue(null, data.accessToken);
-        
-        // Retry the original request
-        return api(path, { ...options, headers, isRetry: true });
-      } catch (error) {
-        // If refresh fails, clear tokens and redirect to login
-        processQueue(error, null);
-        clearAuthTokens();
-        
-        // Only redirect if we're on the client side and not already on the login page
-        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-          window.location.href = '/login';
-        }
-        
-        throw new Error('Session expired. Please log in again.');
-      } finally {
-        isRefreshing = false;
-      }
+      // Do not clear tokens or redirect automatically; let caller decide
+      const error: ApiError = new Error('Unauthorized');
+      error.status = 401;
+      throw error;
     }
 
     // Handle other error statuses
@@ -242,8 +187,8 @@ export const AuthAPI = {
       skipAuth: true,
     });
     const mapped: LoginResponse = {
-      accessToken: raw.token,
-      refreshToken: '',
+      accessToken: raw.token || raw.accessToken,
+      refreshToken: raw.refreshToken ?? '',
       user: raw.user,
     };
     return mapped;
@@ -280,7 +225,9 @@ export const AuthAPI = {
 
   // Get current user
   async getCurrentUser(): Promise<{ user: User }> {
+    console.log('[AuthAPI] getCurrentUser() called')
     const res = await api<any>('/api/v1/auth/me');
+    console.log('[AuthAPI] getCurrentUser() response:', res)
     // ensure we always have a user.id
     if (res?.user && !res.user.id && res.user._id) {
       res.user.id = res.user._id;

@@ -7,6 +7,8 @@ const User = require('../models/User');
 const Shop = require('../models/Shop');
 const auth = require('../middleware/auth');
 const { signToken, generateGuestToken } = require('../utils/jwt');
+const Session = require('../models/Session');
+const crypto = require('crypto');
 
 // Role-based access control middleware
 const requireRole = (roles = []) => {
@@ -23,10 +25,78 @@ const requireRole = (roles = []) => {
 
 const router = express.Router();
 
+// Helper to set HttpOnly auth cookie
+function setAuthCookie(res, token) {
+  const isProd = process.env.NODE_ENV === 'production';
+  console.log('[setAuthCookie] Setting token cookie, isProd:', isProd);
+  // Default sameSite to 'lax' for typical SPA flows
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProd, // set true behind HTTPS
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    path: '/',
+  };
+  
+  // For development, ensure domain is not set to allow localhost
+  if (!isProd) {
+    // Don't set domain for localhost
+    console.log('[setAuthCookie] Development mode - not setting domain');
+  }
+  
+  res.cookie('token', token, cookieOptions);
+  console.log('[setAuthCookie] Cookie set with options:', cookieOptions);
+}
+
+function clearAuthCookie(res) {
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    path: '/',
+  });
+}
+
+// Helper to create a Mongo session and set sid cookie
+async function createSession(res, { userId, payload, days = 7 }) {
+  const sid = crypto.randomBytes(24).toString('hex');
+  const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  console.log('[createSession] Creating session with sid:', sid, 'for user:', userId);
+  await Session.create({ sid, user: userId || undefined, payload: payload || undefined, expiresAt });
+  const isProd = process.env.NODE_ENV === 'production';
+  console.log('[createSession] Setting sid cookie, isProd:', isProd);
+  
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    maxAge: days * 24 * 60 * 60 * 1000,
+    path: '/',
+  };
+  
+  res.cookie('sid', sid, cookieOptions);
+  console.log('[createSession] SID cookie set with options:', cookieOptions);
+}
+
+async function deleteSession(req, res) {
+  try {
+    const sid = req.cookies && req.cookies.sid;
+    if (sid) {
+      await Session.deleteOne({ sid });
+    }
+  } catch {}
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie('sid', { httpOnly: true, secure: isProd, sameSite: 'lax', path: '/' });
+}
+
 // Generate guest user
 router.post('/guest', async (req, res) => {
   try {
     const guestToken = generateGuestToken();
+    // Set cookie for guest session
+    setAuthCookie(res, guestToken);
+    await createSession(res, { payload: { role: 'guest', isGuest: true }, days: 7 });
     return res.status(200).json({ 
       success: true, 
       token: guestToken,
@@ -82,6 +152,20 @@ router.post(
         id: user._id, 
         role: user.role, 
         username: user.username 
+      });
+      
+      // Set cookies for customer
+      setAuthCookie(res, token);
+      await createSession(res, { userId: user._id, days: 7 });
+      
+      // Set role cookie for Next.js middleware
+      const isProd = process.env.NODE_ENV === 'production';
+      res.cookie('role', user.role, {
+        httpOnly: false, // Next.js middleware needs to read this
+        secure: isProd,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        path: '/',
       });
       
       return res.status(201).json({ 
@@ -171,6 +255,20 @@ router.post(
         shopId: shop._id
       });
 
+      // Set cookies for seller
+      setAuthCookie(res, token);
+      await createSession(res, { userId: user._id, days: 7 });
+      
+      // Set role cookie for Next.js middleware
+      const isProd = process.env.NODE_ENV === 'production';
+      res.cookie('role', user.role, {
+        httpOnly: false, // Next.js middleware needs to read this
+        secure: isProd,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        path: '/',
+      });
+      
       return res.status(201).json({
         success: true,
         token,
@@ -199,18 +297,25 @@ router.post(
 );
 
 // POST /api/v1/auth/login
-router.post(
-  '/login',
+router.post('/login',
   [
-    body('usernameOrEmail').isString().withMessage('Username or email is required'),
-    body('password').isString().withMessage('Password is required'),
+    body('usernameOrEmail').notEmpty().withMessage('Username or email is required'),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   ],
   async (req, res) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    console.log('[Auth Route] POST /login called with:', { usernameOrEmail: req.body.usernameOrEmail });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array(),
+      });
+    }
 
-      const { usernameOrEmail, password } = req.body;
+    const { usernameOrEmail, password } = req.body;
+    
+    try {
       const query = usernameOrEmail.includes('@')
         ? { email: usernameOrEmail.toLowerCase() }
         : { username: usernameOrEmail.toLowerCase() };
@@ -222,6 +327,21 @@ router.post(
       if (!ok) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
       const token = signToken({ id: user._id, role: user.role, username: user.username });
+      // Set cookies for login
+      setAuthCookie(res, token);
+      await createSession(res, { userId: user._id, days: 7 });
+      
+      // Set role cookie for Next.js middleware
+      const isProd = process.env.NODE_ENV === 'production';
+      res.cookie('role', user.role, {
+        httpOnly: false, // Next.js middleware needs to read this
+        secure: isProd,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        path: '/',
+      });
+      console.log('[Auth Route] Set role cookie:', user.role);
+      
       return res.json({ success: true, token, user: { id: user._id, username: user.username, email: user.email, role: user.role } });
     } catch (err) {
       console.error('Login error:', err);
@@ -235,9 +355,17 @@ router.post(
 );
 
 // GET /api/v1/auth/me - Get current user
-router.get('/me', auth, async (req, res) => {
+router.get('/me', auth.anyAuthenticated, async (req, res) => {
+  console.log('[Auth Route] /me called, req.user:', req.user);
+  
+  // Disable caching for this endpoint
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  
   try {
     const user = await User.findById(req.user.id).select('-passwordHash');
+    console.log('[Auth Route] User from DB:', user ? 'found' : 'not found');
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -257,7 +385,7 @@ router.get('/me', auth, async (req, res) => {
       }
     }
 
-    return res.status(200).json({
+    const responseData = {
       success: true,
       user: {
         id: user._id,
@@ -268,7 +396,10 @@ router.get('/me', auth, async (req, res) => {
         profile: user.profile,
         ...(shopInfo && { shop: shopInfo })
       }
-    });
+    };
+    
+    console.log('[Auth Route] Sending response:', responseData);
+    return res.status(200).json(responseData);
   } catch (err) {
     console.error('Get user error:', err);
     return res.status(500).json({
@@ -309,16 +440,52 @@ router.post('/refresh-token', (req, res) => {
   }
 });
 
-// GET /api/v1/auth/me
-router.get('/me', auth, async (req, res) => {
+
+module.exports = router;
+
+// Debug endpoint to check sessions (development only)
+router.get('/debug/sessions', async (req, res) => {
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(404).json({ success: false, message: 'Not found' });
+  }
   try {
-    const user = await User.findById(req.user.id).select('-passwordHash');
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-    return res.json({ success: true, user });
+    const sessions = await Session.find().limit(10).sort({ createdAt: -1 });
+    return res.json({ success: true, sessions });
   } catch (err) {
-    console.error('Me error', err);
-    return res.status(500).json({ success: false, message: 'Server error' });
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
-module.exports = router;
+// Debug endpoint to check cookies (development only)
+router.get('/debug/cookies', (req, res) => {
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(404).json({ success: false, message: 'Not found' });
+  }
+  console.log('[Debug] Request cookies:', req.cookies);
+  console.log('[Debug] Request headers:', req.headers);
+  return res.json({ 
+    success: true, 
+    cookies: req.cookies,
+    headers: {
+      cookie: req.headers.cookie,
+      origin: req.headers.origin,
+      referer: req.headers.referer
+    }
+  });
+});
+
+// Logout route to clear cookie
+router.post('/logout', async (req, res) => {
+  try {
+    clearAuthCookie(res);
+    await deleteSession(req, res);
+    
+    // Clear role cookie
+    const isProd = process.env.NODE_ENV === 'production';
+    res.clearCookie('role', { httpOnly: false, secure: isProd, sameSite: 'lax', path: '/' });
+    
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Failed to logout' });
+  }
+});

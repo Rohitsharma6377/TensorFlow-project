@@ -40,6 +40,5 @@ const ProductSchema = new mongoose.Schema(
 
 ProductSchema.index({ title: 'text', description: 'text' });
 ProductSchema.index({ category: 1 });
-ProductSchema.index({ 'variants.sku': 1 });
 
 module.exports = mongoose.model('Product', ProductSchema);

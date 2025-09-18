@@ -7,6 +7,7 @@ import { toast } from '@/lib/toast';
 interface ProtectedRouteProps {
   children: ReactNode;
   requiredRole?: 'customer' | 'seller' | 'admin' | 'superadmin';
+  allowedRoles?: Array<'customer' | 'seller' | 'admin' | 'superadmin'>;
   redirectTo?: string;
   allowGuest?: boolean;
 }
@@ -14,26 +15,40 @@ interface ProtectedRouteProps {
 export const ProtectedRoute = ({
   children,
   requiredRole,
+  allowedRoles,
   redirectTo = '/login',
   allowGuest = false,
 }: ProtectedRouteProps) => {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { user, accessToken, status } = useAppSelector((s) => s.auth);
-  const isAuthenticated = Boolean(user && accessToken);
+  // Consider user authenticated if we have a user object (supports cookie-based sessions)
+  const isAuthenticated = Boolean(user);
   const isLoading = status === 'loading';
 
   useEffect(() => {
+    console.log('[ProtectedRoute] useEffect - isLoading:', isLoading, 'isAuthenticated:', isAuthenticated, 'user:', user)
+    
     // Skip if still loading
-    if (isLoading) return;
+    if (isLoading) {
+      console.log('[ProtectedRoute] Still loading, skipping checks')
+      return;
+    }
 
     // Check if user is authenticated
     if (!isAuthenticated && !user?.isGuest) {
+      console.log('[ProtectedRoute] User not authenticated')
+      
       // If there is a token in storage, defer redirect until auth initializes
       if (typeof window !== 'undefined') {
         const hasToken = !!localStorage.getItem('token');
-        if (hasToken) return;
+        console.log('[ProtectedRoute] Token in localStorage:', hasToken)
+        if (hasToken) {
+          console.log('[ProtectedRoute] Has token, deferring redirect')
+          return;
+        }
       }
+      
       // Store the current route to redirect back after login
       if (typeof window !== 'undefined') {
         localStorage.setItem('redirectAfterLogin', window.location.pathname);
@@ -41,10 +56,12 @@ export const ProtectedRoute = ({
       
       // Redirect to login if not allowing guests
       if (!allowGuest) {
+        console.log('[ProtectedRoute] Redirecting to login')
         router.push(redirectTo);
         toast.info('Please log in to continue');
       } else {
         // Try to login as guest
+        console.log('[ProtectedRoute] Trying guest login')
         dispatch(guestLoginThunk())
           .unwrap()
           .catch(() => {
@@ -54,8 +71,11 @@ export const ProtectedRoute = ({
       return;
     }
 
-    // Check if user has the required role
-    if (requiredRole && user?.role !== requiredRole) {
+    // Check if user has the required/allowed role
+    const role = user?.role as 'customer' | 'seller' | 'admin' | 'superadmin' | undefined;
+    const hasRequired = requiredRole ? role === requiredRole : true;
+    const isAllowed = allowedRoles && allowedRoles.length > 0 ? allowedRoles.includes(role as any) : true;
+    if (!hasRequired || !isAllowed) {
       // If user is a guest and guests are allowed, proceed
       if (user?.isGuest && allowGuest) {
         return;
@@ -65,7 +85,7 @@ export const ProtectedRoute = ({
       toast.error('You do not have permission to access this page');
       router.push('/unauthorized');
     }
-  }, [user, isAuthenticated, isLoading, requiredRole, router, redirectTo, allowGuest, dispatch]);
+  }, [user, isAuthenticated, isLoading, requiredRole, allowedRoles, router, redirectTo, allowGuest, dispatch]);
 
   // Show loading state while checking auth
   if (isLoading || (!isAuthenticated && !(user as any)?.isGuest)) {
@@ -77,7 +97,10 @@ export const ProtectedRoute = ({
   }
 
   // Check if user has the required role
-  if (requiredRole && user?.role !== requiredRole && !((user as any)?.isGuest && allowGuest)) {
+  const role = user?.role as 'customer' | 'seller' | 'admin' | 'superadmin' | undefined;
+  const hasRequired = requiredRole ? role === requiredRole : true;
+  const isAllowed = allowedRoles && allowedRoles.length > 0 ? allowedRoles.includes(role as any) : true;
+  if ((!hasRequired || !isAllowed) && !((user as any)?.isGuest && allowGuest)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">

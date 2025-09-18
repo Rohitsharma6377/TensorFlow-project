@@ -43,6 +43,13 @@ export default function LoginPage() {
       toast.success('Login successful');
       // Redirect based on role
       const role = res.user.role;
+      // Set role cookie for middleware-based route protection
+      try {
+        if (typeof document !== 'undefined') {
+          const maxAge = 60 * 60 * 24 * 7; // 7 days
+          document.cookie = `role=${role}; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
+        }
+      } catch {}
       const redirectAfterLogin = localStorage.getItem('redirectAfterLogin');
       if (redirectAfterLogin) {
         localStorage.removeItem('redirectAfterLogin');

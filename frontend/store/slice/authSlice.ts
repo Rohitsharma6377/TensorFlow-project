@@ -21,10 +21,14 @@ const initialState: AuthState = {
 export const loginThunk = createAsyncThunk(
   'auth/login',
   async (payload: { usernameOrEmail: string; password: string }) => {
+    console.log('[loginThunk] Logging in...')
     const res = await AuthAPI.login(payload.usernameOrEmail, payload.password)
-    if (typeof window !== 'undefined') {
+    console.log('[loginThunk] Login response:', res)
+    // Keep localStorage as backup for cookies
+    if (typeof window !== 'undefined' && res.accessToken) {
       localStorage.setItem('token', res.accessToken)
       localStorage.setItem('refreshToken', res.refreshToken)
+      console.log('[loginThunk] Stored tokens in localStorage as backup')
     }
     return res
   }
@@ -33,8 +37,11 @@ export const loginThunk = createAsyncThunk(
 export const signupThunk = createAsyncThunk(
   'auth/signup',
   async (payload: { username: string; email: string; password: string; role?: 'customer' | 'seller'; shopName?: string; phone?: string; address?: any }) => {
+    console.log('[signupThunk] Registering...')
     const res = await AuthAPI.register(payload)
-    if (typeof window !== 'undefined') {
+    console.log('[signupThunk] Register response:', res)
+    // Cookies are set by the server, no need to store in localStorage
+    if (typeof window !== 'undefined' && res.accessToken) {
       localStorage.setItem('token', res.accessToken)
       localStorage.setItem('refreshToken', res.refreshToken)
     }
@@ -43,13 +50,23 @@ export const signupThunk = createAsyncThunk(
 )
 
 export const meThunk = createAsyncThunk('auth/me', async () => {
-  const me = await AuthAPI.getCurrentUser()
-  return me
+  console.log('[meThunk] Calling AuthAPI.getCurrentUser()...')
+  try {
+    const me = await AuthAPI.getCurrentUser()
+    console.log('[meThunk] Success:', me)
+    return me
+  } catch (error) {
+    console.log('[meThunk] Error:', error)
+    throw error
+  }
 })
 
 export const guestLoginThunk = createAsyncThunk('auth/guest', async () => {
+  console.log('[guestLoginThunk] Logging in as guest...')
   const res = await AuthAPI.loginAsGuest()
-  if (typeof window !== 'undefined') {
+  console.log('[guestLoginThunk] Guest login response:', res)
+  // Cookies are set by the server, no need to store in localStorage
+  if (typeof window !== 'undefined' && res.accessToken) {
     localStorage.setItem('token', res.accessToken)
     localStorage.setItem('refreshToken', res.refreshToken)
   }
@@ -96,8 +113,23 @@ const slice = createSlice({
         s.user = a.payload.user
       })
       .addCase(meThunk.fulfilled, (s, a) => {
+        console.log('[authSlice] meThunk.fulfilled with payload:', a.payload)
+        s.status = 'idle'
         // backend returns { success, user }
-        if ((a.payload as any)?.user) s.user = (a.payload as any).user
+        if ((a.payload as any)?.user) {
+          s.user = (a.payload as any).user
+          console.log('[authSlice] User set in state:', s.user)
+        }
+      })
+      .addCase(meThunk.pending, (s) => {
+        s.status = 'loading'
+        s.error = undefined
+      })
+      .addCase(meThunk.rejected, (s, a) => {
+        console.log('[authSlice] meThunk.rejected with error:', a.error)
+        s.status = 'error'
+        s.error = a.error.message
+        s.user = null
       })
       .addCase(guestLoginThunk.fulfilled, (s, a) => {
         s.status = 'idle'

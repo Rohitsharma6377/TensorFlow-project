@@ -30,10 +30,9 @@ const nextConfig = {
     ],
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 60,
+    unoptimized: true,
   },
   experimental: {
-    serverActions: true,
-    optimizeCss: true,
     optimizePackageImports: [
       '@heroicons/react',
       'lucide-react',

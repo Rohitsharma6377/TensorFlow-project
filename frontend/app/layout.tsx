@@ -5,6 +5,7 @@ import { Inter } from 'next/font/google'
 import { Navbar } from '@/components/navbar'
 import Providers from './providers'
 import InitAuth from './init-auth'
+import SessionDebug from '@/components/SessionDebug'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {children}
             </main>
           </div>
+          <SessionDebug />
         </Providers>
       </body>
     </html>

@@ -40,7 +40,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (guestToken) {
             setUser({
               // minimal guest object
-              _id: `guest-${Date.now()}` as unknown as string,
+              id: `guest-${Date.now()}` as unknown as string,
               username: 'guest',
               email: '',
               role: 'guest',
@@ -67,11 +67,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const data = await AuthAPI.getCurrentUser();
       setUser(data.user as User);
+      // Persist role to cookie for middleware checks
+      setRoleCookie(data.user.role);
       return data.user as User;
     } catch (error) {
       console.error('Failed to fetch user:', error);
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
+      clearRoleCookie();
       setUser(null);
       throw error;
     }
@@ -84,6 +87,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       localStorage.setItem('token', res.accessToken);
       localStorage.setItem('refreshToken', res.refreshToken);
       setUser(res.user as User);
+      setRoleCookie(res.user.role);
       toast.success('Login successful');
       redirectAfterAuth(res.user.role);
     } catch (error: any) {
@@ -100,6 +104,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       localStorage.setItem('token', res.accessToken);
       localStorage.setItem('refreshToken', res.refreshToken);
       setUser(res.user as User);
+      setRoleCookie(res.user.role);
       toast.success('Registration successful!');
       redirectAfterAuth(res.user.role);
     } catch (error: any) {
@@ -114,6 +119,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('guestToken');
+    clearRoleCookie();
     setUser(null);
     router.push('/login');
   };
@@ -146,8 +152,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Redirect after successful auth
   const redirectAfterAuth = (role: string) => {
-    const redirectPath = localStorage.getItem('redirectAfterLogin') || 
-      (role === 'admin' || role === 'superadmin' ? '/admin' : '/dashboard');
+    // First preference: URL `next` param
+    let redirectPath: string | null = null;
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      redirectPath = params.get('next');
+    }
+
+    // Second preference: localStorage hint
+    redirectPath = redirectPath || localStorage.getItem('redirectAfterLogin');
+
+    // Fallback mapping by role
+    if (!redirectPath) {
+      if (role === 'superadmin') redirectPath = '/superadmin';
+      else if (role === 'admin') redirectPath = '/admin';
+      else if (role === 'seller') redirectPath = '/seller/dashboard';
+      else redirectPath = '/dashboard';
+    }
     
     localStorage.removeItem('redirectAfterLogin');
     router.push(redirectPath);
@@ -182,3 +203,20 @@ export const useAuth = (): AuthContextType => {
 };
 
 export default AuthContext;
+
+// Helpers to manage role cookie (used by Next middleware on server)
+function setRoleCookie(role: string) {
+  try {
+    if (typeof document === 'undefined') return;
+    // 7 days expiry
+    const maxAge = 60 * 60 * 24 * 7;
+    document.cookie = `role=${encodeURIComponent(role)}; Path=/; Max-Age=${maxAge}`;
+  } catch {}
+}
+
+function clearRoleCookie() {
+  try {
+    if (typeof document === 'undefined') return;
+    document.cookie = 'role=; Path=/; Max-Age=0';
+  } catch {}
+}

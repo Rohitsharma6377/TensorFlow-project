@@ -16,6 +16,7 @@ import {
   ArrowRightOnRectangleIcon as LogoutIcon,
   MoonIcon,
   SunIcon,
+  BellIcon,
   ShoppingCartIcon,
   BookmarkIcon,
   Cog6ToothIcon as CogIcon
@@ -32,25 +33,54 @@ import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { logout as logoutAction } from '@/store/slice/authSlice';
+import ChatPanel from '@/components/panels/ChatPanel';
+import NotificationsPanel from '@/components/panels/NotificationsPanel';
 
 export function Navbar() {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const dispatch = useAppDispatch();
-  const { user } = useAppSelector((s) => s.auth);
+  const { user, accessToken, status } = useAppSelector((s) => s.auth);
   const role = user?.role;
   const router = useRouter();
+  const [openChat, setOpenChat] = useState(false);
+  const [openNotifs, setOpenNotifs] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Close panels on route change
+  useEffect(() => {
+    console.log('[Navbar] route changed to', pathname, '-> closing panels');
+    setOpenChat(false);
+    setOpenNotifs(false);
+  }, [pathname]);
+
+  // Keep role cookie in sync once auth is hydrated (covers InitAuth/me path)
+  useEffect(() => {
+    if (user?.role && accessToken) {
+      try {
+        const maxAge = 60 * 60 * 24 * 7; // 7 days
+        document.cookie = `role=${user.role}; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
+      } catch {}
+    }
+  }, [user?.role, accessToken]);
+
+  useEffect(() => {
+    console.log('[Navbar] mounted');
+  }, []);
+
+  useEffect(() => {
+    console.log('[Navbar] openChat:', openChat, 'openNotifs:', openNotifs);
+  }, [openChat, openNotifs]);
+
   if (!mounted) {
     // Return a placeholder to prevent layout shift
     return (
       <nav className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-4">
+        <div className="w-full px-4">
           <div className="flex justify-between items-center h-16">
             <div className="w-32 h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
             <div className="flex items-center space-x-4">
@@ -58,7 +88,10 @@ export function Navbar() {
             </div>
           </div>
         </div>
-      </nav>
+        {/* Slide-over panels */}
+      <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} />
+      <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />
+    </nav>
     );
   }
 
@@ -78,11 +111,6 @@ export function Navbar() {
       icon: isActive('/explore') ? SearchIconSolid : SearchIcon,
     },
     { 
-      name: 'Messages', 
-      href: '/messages', 
-      icon: isActive('/messages') ? PaperAirplaneIconSolid : PaperAirplaneIcon,
-    },
-    { 
       name: 'Create', 
       href: '/create', 
       icon: isActive('/create') ? PlusCircleIconSolid : PlusCircleIcon,
@@ -96,10 +124,10 @@ export function Navbar() {
 
   return (
     <nav className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
-      <div className="max-w-6xl mx-auto px-4">
+      <div className="w-full px-4">
         <div className="flex justify-between items-center h-16">
           {/* Left - Logo */}
-          <Link href={roleHome} className="flex items-center">
+          <Link href='/' className="flex items-center">
             <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-500 to-orange-500 bg-clip-text text-transparent">
               SocialShop
             </h1>
@@ -126,6 +154,38 @@ export function Navbar() {
               );
             })}
 
+            {/* Notifications */}
+            <button
+              type="button"
+              onClick={() => {
+                console.log('[Navbar] notifications icon clicked, current state:', openNotifs);
+                setOpenNotifs((v) => {
+                  console.log('[Navbar] setting notifications to:', !v);
+                  return !v;
+                });
+              }}
+              className="p-2 rounded-md text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
+              aria-label="Open notifications"
+            >
+              <BellIcon className="h-6 w-6" />
+            </button>
+
+            {/* Messages */}
+            <button
+              type="button"
+              onClick={() => {
+                console.log('[Navbar] chat icon clicked, current state:', openChat);
+                setOpenChat((v) => {
+                  console.log('[Navbar] setting chat to:', !v);
+                  return !v;
+                });
+              }}
+              className="p-2 rounded-md text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
+              aria-label="Open messages"
+            >
+              <PaperAirplaneIcon className="h-6 w-6 -rotate-45" />
+            </button>
+
             <button
               type="button"
               onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
@@ -135,7 +195,7 @@ export function Navbar() {
               {resolvedTheme === 'dark' ? <SunIcon className="h-6 w-6" /> : <MoonIcon className="h-6 w-6" />}
             </button>
 
-            {user ? (
+            {user && accessToken ? (
               <Menu as="div" className="relative">
                 <Menu.Button className="flex items-center space-x-2 focus:outline-none">
                   <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-yellow-400 to-pink-600 p-0.5">
@@ -185,7 +245,13 @@ export function Navbar() {
                     <div className="px-1 py-1">
                       <Menu.Item>
                         {({ active }) => (
-                          <button onClick={() => { dispatch(logoutAction()); router.push('/'); }} className={`${active ? 'bg-gray-100 dark:bg-gray-700' : ''} group flex w-full items-center rounded-md px-2 py-2 text-sm text-red-500`}>
+                          <button onClick={() => { 
+                            // clear redux + localStorage
+                            dispatch(logoutAction()); 
+                            // clear role cookie for middleware
+                            try { document.cookie = 'role=; Max-Age=0; Path=/'; } catch {}
+                            router.push('/'); 
+                          }} className={`${active ? 'bg-gray-100 dark:bg-gray-700' : ''} group flex w-full items-center rounded-md px-2 py-2 text-sm text-red-500`}>
                             <LogoutIcon className="mr-2 h-5 w-5" />
                             Logout
                           </button>
@@ -207,6 +273,10 @@ export function Navbar() {
           </div>
         </div>
       </div>
+      
+      {/* Slide-over panels */}
+      <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} />
+      <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />
     </nav>
   );
 }
