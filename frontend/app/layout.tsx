@@ -5,23 +5,24 @@ import { Inter } from 'next/font/google'
 import { Navbar } from '@/components/navbar'
 import Providers from './providers'
 import InitAuth from './init-auth'
-import SessionDebug from '@/components/SessionDebug'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'Social Commerce',
-  description: 'A social commerce platform with Instagram-like UI',
+  title: 'SocialShop - Discover Amazing Products',
+  description: 'A beautiful social commerce platform where you can discover, share, and shop amazing products from your favorite creators and brands.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-        <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#ecfdf5" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
       </head>
-      <body className={`${inter.className} bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen`}>
+      <body className={`${inter.className} emerald-sky-bg text-slate-900 dark:text-slate-100 min-h-screen antialiased`}>
         <Providers>
           <InitAuth />
           <div className="flex flex-col">
@@ -30,7 +31,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {children}
             </main>
           </div>
-          <SessionDebug />
         </Providers>
       </body>
     </html>
