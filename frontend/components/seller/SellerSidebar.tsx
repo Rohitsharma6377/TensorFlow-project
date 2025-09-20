@@ -27,8 +27,8 @@ export function SellerSidebar() {
   return (
     <aside
       className={cn(
-        'shrink-0 border-r bg-gradient-to-b from-sky-50 via-emerald-50 to-emerald-100/40 transition-all duration-300',
-        collapsed ? 'w-14' : 'w-full md:w-64'
+        'shrink-0 border-r bg-gradient-to-b from-sky-50 via-emerald-50 to-emerald-100/40 transition-all duration-300 sticky top-16 self-start h-[calc(100vh-4rem)] overflow-hidden',
+        collapsed ? 'w-14' : 'w-64'
       )}
     >
       <div className="p-4 border-b border-emerald-100/60 flex items-center justify-between">

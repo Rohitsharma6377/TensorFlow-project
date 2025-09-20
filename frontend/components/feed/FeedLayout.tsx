@@ -7,7 +7,7 @@ import StoriesSection from './StoriesSection';
 
 export function FeedLayout() {
   return (
-    <div className="min-h-screen emerald-sky-bg relative overflow-hidden">
+    <div className="min-h-screen lg:h-screen emerald-sky-bg relative lg:overflow-hidden">
       {/* Decorative background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-72 h-72 bg-emerald-200/10 rounded-full blur-3xl"></div>
@@ -15,38 +15,41 @@ export function FeedLayout() {
         <div className="absolute bottom-20 left-1/3 w-64 h-64 bg-blue-200/10 rounded-full blur-3xl"></div>
       </div>
       
-      <div className="relative flex">
-        {/* Left Sidebar - 30% width */}
-        <div className="hidden lg:block w-[30%] min-w-[320px] max-w-[400px] fixed left-0 top-16 h-[calc(100vh-4rem)] z-20">
+      {/* Fixed Left Sidebar (top-to-bottom, fixed width) */}
+      <aside className="hidden lg:block fixed inset-y-0 left-0 w-[360px] z-20 overflow-hidden">
+        <div className="h-full overflow-y-auto">
           <LeftSidebar />
         </div>
-        
-        <div className="w-full lg:w-[70%] lg:ml-[30%] min-h-screen">
-          {/* Stories Section - Within main content area */}
-          <div className="sticky top-16 z-30 glass emerald-shadow">
-            <StoriesSection />
-          </div>
-          
-          {/* Main Feed - Enhanced spacing and responsive design */}
-          <div className="py-6 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto">
-              {/* Feed Header */}
-              <div className="mb-8 text-center">
-                <h1 className="text-3xl sm:text-4xl font-bold emerald-sky-gradient mb-3">
-                  Discover Amazing Products
-                </h1>
-                <p className="text-emerald-700 dark:text-emerald-300 text-lg font-medium">
-                  Explore the latest trends from your favorite creators and brands
-                </p>
-                <div className="mt-4 flex justify-center">
-                  <div className="w-24 h-1 bg-gradient-to-r from-emerald-500 to-sky-500 rounded-full"></div>
-                </div>
-              </div>
-              
-              <MainFeed />
+      </aside>
+
+      {/* Main wrapper offset by the fixed sidebar width on large screens */}
+      <div className="relative lg:pl-[360px]">
+        {/* Main Content Area (independent scroll on large screens) */}
+        <main className="w-full lg:h-screen lg:overflow-y-auto">
+          {/* Stories Section - Sticky and flush under header */}
+          <div className="sticky top-0 z-30">
+            <div className="glass emerald-shadow px-0 rounded-none">
+              <StoriesSection />
             </div>
           </div>
-        </div>
+          {/* Main Feed - Full width of the right column with right padding only */}
+          <div className="py-6 pr-4 sm:pr-6 lg:pr-8 pl-0">
+            {/* Feed Header */}
+            <div className="mb-8 text-center">
+              <h1 className="text-3xl sm:text-4xl font-bold emerald-sky-gradient mb-3">
+                Discover Amazing Products
+              </h1>
+              <p className="text-emerald-700 dark:text-emerald-300 text-lg font-medium">
+                Explore the latest trends from your favorite creators and brands
+              </p>
+              <div className="mt-4 flex justify-center">
+                <div className="w-24 h-1 bg-gradient-to-r from-emerald-500 to-sky-500 rounded-full"></div>
+              </div>
+            </div>
+            
+            <MainFeed />
+          </div>
+        </main>
       </div>
       
       {/* Mobile Bottom Navigation */}

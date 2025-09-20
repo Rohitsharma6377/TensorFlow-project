@@ -32,7 +32,7 @@ router.post(
       const shop = await Shop.findById(req.body.shopId);
       if (!shop) return res.status(404).json({ success: false, message: 'Shop not found' });
 
-      const isOwner = String(shop.ownerId) === String(req.user.id);
+      const isOwner = String(shop.owner || shop.ownerId) === String(req.user.id);
       const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
       if (!isOwner && !isAdmin) return res.status(403).json({ success: false, message: 'Forbidden' });
 
@@ -40,16 +40,31 @@ router.post(
         ? req.body.images
         : (req.uploadedUrls?.length ? req.uploadedUrls : (req.body.images ? [req.body.images] : []));
 
+      let variants;
+      if (req.body.variants) {
+        try {
+          variants = typeof req.body.variants === 'string' ? JSON.parse(req.body.variants) : req.body.variants;
+          if (!Array.isArray(variants)) variants = undefined;
+        } catch { variants = undefined; }
+      }
+
       const product = await Product.create({
         shopId: req.body.shopId,
         title: req.body.title,
         sku: req.body.sku,
         description: req.body.description,
         price: req.body.price,
+        mrp: req.body.mrp,
         taxRate: req.body.taxRate || 0,
         stock: req.body.stock || 0,
         images,
+        mainImage: req.body.mainImage,
+        brand: req.body.brand,
+        category: req.body.category,
+        tags: req.body.tags || [],
         attributes: req.body.attributes || {},
+        options: req.body.options || {},
+        variants: variants || [],
         status: req.body.status || 'active',
       });
       // Invalidate caches for product lists and details
@@ -105,22 +120,34 @@ router.put(
       if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
       const shop = await Shop.findById(product.shopId);
 
-      const isOwner = shop && String(shop.ownerId) === String(req.user.id);
+      const isOwner = shop && String((shop.owner || shop.ownerId)) === String(req.user.id);
       const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
       if (!isOwner && !isAdmin) return res.status(403).json({ success: false, message: 'Forbidden' });
 
       let images = (req.body.images && Array.isArray(req.body.images)) ? req.body.images : (req.uploadedUrls?.length ? req.uploadedUrls : undefined);
-      const updates = (({ title, sku, description, price, taxRate, stock, attributes, status }) => ({
+      const updates = (({ title, sku, description, price, mrp, taxRate, stock, attributes, status, mainImage, brand, category, options }) => ({
         title,
         sku,
         description,
         price,
+        mrp,
         taxRate,
         stock,
         attributes,
         status,
+        mainImage,
+        brand,
+        category,
+        options,
       }))(req.body);
       if (images !== undefined) updates.images = images;
+      if (req.body.tags) updates.tags = Array.isArray(req.body.tags) ? req.body.tags : [req.body.tags];
+      if (req.body.variants) {
+        try {
+          const v = typeof req.body.variants === 'string' ? JSON.parse(req.body.variants) : req.body.variants;
+          if (Array.isArray(v)) updates.variants = v;
+        } catch {}
+      }
       Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
 
       const updated = await Product.findByIdAndUpdate(req.params.id, updates, { new: true });

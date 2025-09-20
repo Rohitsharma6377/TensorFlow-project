@@ -40,8 +40,8 @@ export function TestPanels() {
       </div>
 
       {/* Panels */}
-      <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />
-      <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} />
+      {/* <ChatPanel open={openChat} onClose={() => setOpenChat(false)} /> */}
+      {/* <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} /> */}
     </div>
   );
 }

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BellIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
-import ChatPanel from '@/components/panels/ChatPanel';
+import { BellIcon, PaperAirplaneIcon, HomeIcon, TagIcon, BuildingStorefrontIcon, InformationCircleIcon, PhoneIcon } from '@heroicons/react/24/outline';
+// import ChatPanel from '@/components/panels/ChatPanel';
 import NotificationsPanel from '@/components/panels/NotificationsPanel';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -91,6 +91,7 @@ export function Navbar() {
   const isLoading = status === 'loading';
   const pathname = usePathname();
   const router = useRouter();
+  const hideChatOnThisRoute = pathname?.startsWith('/seller/shopprofie');
 
   // Handle scroll effect
   useEffect(() => {
@@ -108,6 +109,28 @@ export function Navbar() {
     setOpenChat(false);
     setOpenNotifs(false);
   }, [pathname]);
+
+  // Force close chat panel on specific routes
+  useEffect(() => {
+    if (hideChatOnThisRoute && openChat) setOpenChat(false);
+  }, [hideChatOnThisRoute, openChat]);
+
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = original; };
+  }, [isMobileMenuOpen]);
+
+  // Close mobile menu with ESC
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMobileMenuOpen(false);
+    };
+    if (isMobileMenuOpen) window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isMobileMenuOpen]);
 
   // Keep role cookie in sync once auth is hydrated (covers InitAuth/me)
   useEffect(() => {
@@ -147,7 +170,8 @@ export function Navbar() {
   };
 
   return (
-    <header
+<>
+<header
       className={cn(
         'sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-all duration-300',
         isScrolled ? 'shadow-sm' : ''
@@ -162,8 +186,8 @@ export function Navbar() {
             <span className="font-bold inline-block">EcomApp</span>
           </Link>
           
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex gap-6">
+          {/* Desktop Navigation (lg and up) */}
+          <nav className="hidden lg:flex gap-6">
             {filteredMainNavItems.map((item) => (
               <Link
                 key={item.href}
@@ -184,21 +208,23 @@ export function Navbar() {
           <button
             type="button"
             onClick={() => setOpenNotifs((v) => !v)}
-            className="hidden md:inline-flex p-2 rounded-md text-muted-foreground hover:text-foreground"
+            className="hidden lg:inline-flex p-2 rounded-md text-muted-foreground hover:text-foreground"
             aria-label="Open notifications"
           >
             <BellIcon className="h-5 w-5" />
           </button>
-          <button
-            type="button"
-            onClick={() => setOpenChat((v) => !v)}
-            className="hidden md:inline-flex p-2 rounded-md text-muted-foreground hover:text-foreground"
-            aria-label="Open messages"
-          >
-            <PaperAirplaneIcon className="h-5 w-5 -rotate-45" />
-          </button>
+          {!hideChatOnThisRoute && (
+            <button
+              type="button"
+              onClick={() => setOpenChat((v) => !v)}
+              className="hidden lg:inline-flex p-2 rounded-md text-muted-foreground hover:text-foreground"
+              aria-label="Open messages"
+            >
+              <PaperAirplaneIcon className="h-5 w-5 -rotate-45" />
+            </button>
+          )}
           {/* Search Bar - Only show on desktop */}
-          <div className="hidden md:flex items-center relative w-64">
+          <div className="hidden lg:flex items-center relative w-64">
             <Icons.search className="absolute left-3 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
@@ -263,7 +289,7 @@ export function Navbar() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <div className="hidden md:flex items-center space-x-2">
+            <div className="hidden lg:flex items-center space-x-2">
               <Button variant="ghost" asChild>
                 <Link href="/login">Login</Link>
               </Button>
@@ -277,7 +303,7 @@ export function Navbar() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="lg:hidden"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
             {isMobileMenuOpen ? (
@@ -286,82 +312,25 @@ export function Navbar() {
               <Icons.menu className="h-5 w-5" />
             )}
             <span className="sr-only">Toggle menu</span>
-          </Button>
         </div>
-      </div>
-
-      {/* Mobile Navigation */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden border-t">
-          <div className="w-full px-4 py-4 space-y-4">
-            <div className="relative w-full mb-4">
-              <Icons.search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search products..."
-                className="w-full rounded-md border border-input bg-background pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-              />
-            </div>
-            
-            <nav className="flex flex-col space-y-2">
-              {mainNavItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    'flex items-center rounded-md px-3 py-2 text-sm font-medium',
-                    pathname === item.href
-                      ? 'bg-accent text-accent-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                  )}
-                >
-                  {item.name}
-                </Link>
-              ))}
-              
-              {isAuthenticated ? (
-                <>
-                  <div className="border-t my-2"></div>
-                  {filteredAuthNavItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        'flex items-center rounded-md px-3 py-2 text-sm font-medium',
-                        pathname === item.href
-                          ? 'bg-accent text-accent-foreground'
-                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                      )}
-                    >
-                      {item.icon}
-                      <span className="ml-2">{item.name}</span>
-                    </Link>
-                  ))}
-                  <button
-                    onClick={handleLogout}
-                    className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
-                  >
-                    <Icons.logout className="mr-2 h-4 w-4" />
-                    Log out
-                  </button>
-                </>
-              ) : (
-                <div className="flex flex-col space-y-2 pt-2 border-t">
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href="/login">Login</Link>
-                  </Button>
-                  <Button asChild className="w-full">
-                    <Link href="/register">Sign Up</Link>
-                  </Button>
-                </div>
-              )}
-            </nav>
+           
+          {/* Quick action icons for mobile */}
+          <div className="flex gap-2 pt-2 border-t border-slate-800">
+            <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white" onClick={() => { setOpenNotifs(true); setIsMobileMenuOpen(false); }} aria-label="Notifications">
+              <BellIcon className="h-5 w-5" />
+            </Button>
+            {!hideChatOnThisRoute && (
+              <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white" onClick={() => { setOpenChat(true); setIsMobileMenuOpen(false); }} aria-label="Messages">
+                <PaperAirplaneIcon className="h-5 w-5 -rotate-45" />
+              </Button>
+            )}
           </div>
-        </div>
-      )}
-      {/* Slide-over panels (portals will render above all) */}
-      <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} />
-      <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />
-    </header>
-  );
-}
+    </div>
+
+  {/* Slide-over panels (portals will render above all) */}
+  {/* <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} /> */}
+  {/* {!hideChatOnThisRoute && <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />} */}
+</header>
+
+</>
+)};

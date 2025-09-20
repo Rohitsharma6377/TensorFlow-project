@@ -9,6 +9,7 @@ import {
   EllipsisHorizontalIcon,
   PlayIcon
 } from '@heroicons/react/24/outline';
+import { PlusIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
 
 interface Post {
@@ -270,13 +271,13 @@ export function MainFeed() {
                 </button>
               </div>
 
-              {/* Post Media */}
-              <div className="relative mx-2 mb-2">
-                <div className="aspect-square bg-gradient-to-br from-emerald-50 to-sky-50 dark:bg-gray-800 relative overflow-hidden rounded-lg border border-emerald-100 dark:border-gray-700 shadow-inner">
-                  <img 
-                    src={post.content.media[currentIndex]} 
+              {/* Post Media - Fixed 300x300 */}
+              <div className="relative mx-auto mb-2 w-full max-w-[300px]">
+                <div className="w-full h-[300px] bg-gradient-to-br from-emerald-50 to-sky-50 dark:bg-gray-800 relative overflow-hidden rounded-lg border border-emerald-100 dark:border-gray-700 shadow-inner">
+                  <img
+                    src={post.content.media[currentIndex]}
                     alt="Post content"
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    className="w-full h-full object-cover"
                   />
                   
                   {post.type === 'reel' && (
@@ -292,13 +293,13 @@ export function MainFeed() {
                   {/* Media Navigation */}
                   {post.content.media.length > 1 && (
                     <>
-                      <button 
+                      <button
                         onClick={() => prevMedia(post.id, post.content.media.length)}
                         className="absolute left-2 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-black bg-opacity-50 rounded-full flex items-center justify-center text-white"
                       >
                         ‹
                       </button>
-                      <button 
+                      <button
                         onClick={() => nextMedia(post.id, post.content.media.length)}
                         className="absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-black bg-opacity-50 rounded-full flex items-center justify-center text-white"
                       >
@@ -371,28 +372,38 @@ export function MainFeed() {
                   </p>
                 </div>
 
-                {/* Products */}
+                {/* Products - Small square cards */}
                 {post.products && post.products.length > 0 && (
-                  <div className="border-t border-emerald-200 dark:border-gray-700 pt-2">
-                    <div className="flex gap-1.5">
-                      {post.products.slice(0, 2).map((product) => (
-                        <div 
+                  <div className="border-t border-emerald-200 dark:border-gray-700 pt-3">
+                    <div className="flex items-stretch gap-2">
+                      {post.products.slice(0, 3).map((product) => (
+                        <div
                           key={product.id}
-                          className="flex-1 bg-gradient-to-br from-emerald-50 to-sky-50 dark:bg-gray-800 rounded-md p-1.5 cursor-pointer hover:from-emerald-100 hover:to-sky-100 dark:hover:bg-gray-700 transition-all duration-300 border border-emerald-200 hover:border-emerald-300"
+                          className="w-16 h-20 rounded-md border border-emerald-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/80 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group cursor-pointer"
                         >
-                          <img 
-                            src={product.image} 
-                            alt={product.name}
-                            className="w-full aspect-square rounded object-cover mb-1"
-                          />
-                          <p className="text-xs font-semibold text-emerald-900 dark:text-white text-center truncate">
-                            {product.name}
-                          </p>
-                          <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 text-center">
-                            ₹{product.price.toLocaleString()}
-                          </p>
+                          <div className="w-full h-16">
+                            <img
+                              src={product.image}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="px-1 py-0.5">
+                            <p className="text-[10px] font-semibold text-emerald-900 dark:text-white truncate" title={product.name}>
+                              {product.name}
+                            </p>
+                          </div>
                         </div>
                       ))}
+
+                      {post.products.length > 3 && (
+                        <div className="w-16 h-20 rounded-md border border-emerald-300/60 bg-gradient-to-br from-emerald-50 to-sky-50 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold cursor-pointer hover:from-emerald-100 hover:to-sky-100 transition-all">
+                          <div className="flex items-center gap-1">
+                            <PlusIcon className="w-4 h-4" />
+                            <span className="text-xs">{post.products.length - 3}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

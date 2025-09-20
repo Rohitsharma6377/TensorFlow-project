@@ -7,8 +7,23 @@ const addressSchema = new mongoose.Schema({
   country: { type: String, required: true, default: 'India' },
   pincode: { type: String, required: true },
   location: {
-    type: { type: String, default: 'Point', enum: ['Point'] },
-    coordinates: [Number], // [longitude, latitude]
+    type: new mongoose.Schema(
+      {
+        type: { type: String, enum: ['Point'] },
+        coordinates: {
+          type: [Number],
+          validate: {
+            validator: function (v) {
+              // allow undefined or empty (will be sanitized), or exactly length 2 numbers
+              return !v || (Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === 'number' && !Number.isNaN(n)));
+            },
+            message: 'coordinates must be [lng, lat]'
+          }
+        },
+      },
+      { _id: false }
+    ),
+    required: false,
   },
   isDefault: { type: Boolean, default: false }
 });
@@ -152,19 +167,58 @@ ShopSchema.virtual('orders', {
   justOne: false
 });
 
-// Pre-save hook to generate slug
-ShopSchema.pre('save', async function(next) {
-  if (!this.isModified('name')) return next();
-  
+// Pre-validate hook to ensure slug exists before required validation
+ShopSchema.pre('validate', function(next) {
+  // If slug already provided, keep it (lowercased/trimmed)
+  if (this.slug && typeof this.slug === 'string') {
+    this.slug = this.slug.toLowerCase().trim();
+    return next();
+  }
+
+  if (!this.name) return next();
+
   // Generate slug from name
-  this.slug = this.name
+  const base = this.name
     .toLowerCase()
     .replace(/[^\w\s-]/g, '') // Remove special chars
     .replace(/\s+/g, '-')       // Replace spaces with -
     .replace(/--+/g, '-')       // Replace multiple - with single -
-    .trim()
-    .concat('-', Math.random().toString(36).substring(2, 8)); // Add random string for uniqueness
-  
+    .trim();
+
+  this.slug = base.concat('-', Math.random().toString(36).substring(2, 8)); // Ensure uniqueness suffix
+  // Continue to next middleware
+  next();
+});
+
+// Final safety: sanitize invalid GeoJSON right before save
+ShopSchema.pre('save', function(next) {
+  try {
+    const loc = this.address && this.address.location;
+    if (loc) {
+      const coords = Array.isArray(loc.coordinates) ? loc.coordinates : [];
+      const ok = coords.length === 2 && coords.every((n) => typeof n === 'number' && !Number.isNaN(n));
+      if (!ok) {
+        try { delete this.address.location; } catch {}
+        this.markModified('address');
+      }
+    }
+  } catch {}
+  next();
+});
+
+// Sanitize invalid GeoJSON location before validation
+ShopSchema.pre('validate', function(next) {
+  try {
+    const loc = this.address && this.address.location;
+    if (loc) {
+      const coords = Array.isArray(loc.coordinates) ? loc.coordinates : [];
+      const ok = coords.length === 2 && coords.every((n) => typeof n === 'number' && !Number.isNaN(n));
+      if (!ok) {
+        try { delete this.address.location; } catch {}
+        this.markModified('address');
+      }
+    }
+  } catch {}
   next();
 });
 
@@ -202,3 +256,4 @@ ShopSchema.statics.findNearby = function(coordinates, maxDistance = 10000) {
 };
 
 module.exports = mongoose.model('Shop', ShopSchema);
+

@@ -116,7 +116,7 @@ export function StoriesSection() {
     }
   ]);
 
-  // Mock story data with actual content
+  // Mock story data with reliable image URLs (tall aspect for 9:16 viewer)
   const storyData = stories.map(story => ({
     id: story.id,
     shop: story.shop,
@@ -124,7 +124,7 @@ export function StoriesSection() {
       {
         id: '1',
         type: 'image' as const,
-        url: `https://images.unsplash.com/photo-${Math.floor(Math.random() * 1000000000)}?w=400&h=700&fit=crop`,
+        url: `https://picsum.photos/seed/${story.id}-1/900/1600`,
         duration: 5,
         timestamp: story.lastUpdated,
         product: Math.random() > 0.5 ? {
@@ -137,7 +137,7 @@ export function StoriesSection() {
       {
         id: '2',
         type: 'image' as const,
-        url: `https://images.unsplash.com/photo-${Math.floor(Math.random() * 1000000000)}?w=400&h=700&fit=crop`,
+        url: `https://picsum.photos/seed/${story.id}-2/900/1600`,
         duration: 4,
         timestamp: story.lastUpdated,
       }
@@ -155,14 +155,8 @@ export function StoriesSection() {
   };
 
   return (
-    <div className="w-full bg-gradient-to-r from-emerald-50/90 via-sky-50/90 to-blue-50/90 backdrop-blur-md dark:from-gray-900/90 dark:via-gray-800/90 dark:to-gray-900/90 border-b border-emerald-200/50 dark:border-gray-700 sticky top-16 z-40 shadow-xl">
-      {/* Decorative background elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-32 h-32 bg-emerald-200/20 rounded-full blur-3xl"></div>
-        <div className="absolute top-0 right-1/4 w-24 h-24 bg-sky-200/20 rounded-full blur-2xl"></div>
-      </div>
-      
-      <div className="relative px-6 py-3">
+    <div className="w-full">
+      <div className="relative px-0 py-0">
         {/* Compact Section Header */}
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-bold bg-gradient-to-r from-emerald-600 to-sky-600 bg-clip-text text-transparent">

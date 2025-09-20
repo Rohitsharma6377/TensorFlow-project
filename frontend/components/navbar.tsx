@@ -19,7 +19,8 @@ import {
   BellIcon,
   ShoppingCartIcon,
   BookmarkIcon,
-  Cog6ToothIcon as CogIcon
+  Cog6ToothIcon as CogIcon,
+  Bars3Icon
 } from '@heroicons/react/24/outline';
 import { 
   HomeIcon as HomeIconSolid, 
@@ -33,12 +34,13 @@ import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { logout as logoutAction } from '@/store/slice/authSlice';
-import ChatPanel from '@/components/panels/ChatPanel';
+// import ChatPanel from '@/components/panels/ChatPanel';/
 import NotificationsPanel from '@/components/panels/NotificationsPanel';
 
 export function Navbar() {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const { user, accessToken, status } = useAppSelector((s) => s.auth);
@@ -56,6 +58,7 @@ export function Navbar() {
     console.log('[Navbar] route changed to', pathname, '-> closing panels');
     setOpenChat(false);
     setOpenNotifs(false);
+    setIsMobileMenuOpen(false);
   }, [pathname]);
 
   // Keep role cookie in sync once auth is hydrated (covers InitAuth/me path)
@@ -76,6 +79,23 @@ export function Navbar() {
     console.log('[Navbar] openChat:', openChat, 'openNotifs:', openNotifs);
   }, [openChat, openNotifs]);
 
+  // Lock body scroll when drawer open
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = original; };
+  }, [isMobileMenuOpen]);
+
+  // ESC to close drawer
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMobileMenuOpen(false);
+    };
+    if (isMobileMenuOpen) window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isMobileMenuOpen]);
+
   if (!mounted) {
     // Return a placeholder to prevent layout shift
     return (
@@ -89,8 +109,8 @@ export function Navbar() {
           </div>
         </div>
         {/* Slide-over panels */}
-      <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} />
-      <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />
+      {/* <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} /> */}
+      {/* <ChatPanel open={openChat} onClose={() => setOpenChat(false)} /> */}
     </nav>
     );
   }
@@ -134,7 +154,7 @@ export function Navbar() {
           </Link>
 
           {/* Center - Search (hidden on mobile) */}
-          <div className="hidden md:flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 w-1/3 max-w-md">
+          <div className="hidden lg:flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 w-1/3 max-w-md">
             <SearchIcon className="h-4 w-4 text-gray-500 mr-2" />
             <input
               type="text"
@@ -143,12 +163,23 @@ export function Navbar() {
             />
           </div>
 
-          {/* Right - Navigation Icons */}
+          {/* Right - Navigation Icons / Hamburger */}
           <div className="flex items-center space-x-4">
+            {/* Hamburger for mobile/tablet */}
+            <button
+              type="button"
+              className="inline-flex lg:hidden p-2 rounded-md text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
+              aria-label="Open menu"
+              onClick={() => setIsMobileMenuOpen(true)}
+            >
+              <Bars3Icon className="h-6 w-6" />
+              <span className="sr-only">Open menu</span>
+            </button>
+
             {navItems.map((item) => {
               const Icon = item.icon;
               return (
-                <Link key={item.name} href={item.href} className={`p-2 rounded-md ${isActive(item.href) ? 'text-black dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white'}`} aria-label={item.name}>
+                <Link key={item.name} href={item.href} className={`hidden lg:inline-flex p-2 rounded-md ${isActive(item.href) ? 'text-black dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white'}`} aria-label={item.name}>
                   <Icon className="h-6 w-6" />
                 </Link>
               );
@@ -164,7 +195,7 @@ export function Navbar() {
                   return !v;
                 });
               }}
-              className="p-2 rounded-md text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
+              className="hidden lg:inline-flex p-2 rounded-md text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
               aria-label="Open notifications"
             >
               <BellIcon className="h-6 w-6" />
@@ -180,7 +211,7 @@ export function Navbar() {
                   return !v;
                 });
               }}
-              className="p-2 rounded-md text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
+              className="hidden lg:inline-flex p-2 rounded-md text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
               aria-label="Open messages"
             >
               <PaperAirplaneIcon className="h-6 w-6 -rotate-45" />
@@ -197,7 +228,7 @@ export function Navbar() {
 
             {user && accessToken ? (
               <Menu as="div" className="relative">
-                <Menu.Button className="flex items-center space-x-2 focus:outline-none">
+                <Menu.Button className="hidden lg:flex items-center space-x-2 focus:outline-none">
                   <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-yellow-400 to-pink-600 p-0.5">
                     <div className="h-full w-full rounded-full bg-white dark:bg-gray-900 p-0.5">
                       <Image src="https://i.pravatar.cc/150?img=1" alt="Profile" width={32} height={32} className="rounded-full object-cover h-full w-full" unoptimized />
@@ -262,7 +293,7 @@ export function Navbar() {
                 </Transition>
               </Menu>
             ) : (
-              <button type="button" onClick={() => router.push('/login')} className="flex items-center space-x-2 focus:outline-none" aria-label="Open profile (login required)">
+              <button type="button" onClick={() => router.push('/login')} className="hidden lg:flex items-center space-x-2 focus:outline-none" aria-label="Open profile (login required)">
                 <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-yellow-400 to-pink-600 p-0.5">
                   <div className="h-full w-full rounded-full bg-white dark:bg-gray-900 p-0.5">
                     <Image src="https://i.pravatar.cc/150?img=1" alt="Profile" width={32} height={32} className="rounded-full object-cover h-full w-full" unoptimized />
@@ -273,10 +304,63 @@ export function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* Mobile/Tablet Drawer */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-[9999] lg:hidden" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 z-10 bg-black/40" onClick={() => setIsMobileMenuOpen(false)} />
+          <div className="absolute top-0 left-0 bottom-0 z-20 w-full max-w-xs bg-white dark:bg-gray-900 border-r shadow-2xl">
+            <div className="flex items-center justify-between px-4 h-16 border-b bg-white/95 dark:bg-gray-900/95 sticky top-0">
+              <span className="font-semibold">Menu</span>
+              <button className="p-2" onClick={() => setIsMobileMenuOpen(false)} aria-label="Close menu">
+                ✕
+              </button>
+            </div>
+            <div className="h-[calc(100%-4rem)] overflow-y-auto px-2 py-3">
+              {/* Quick actions */}
+              <div className="flex gap-2 mb-3">
+                <button onClick={() => { setOpenNotifs(true); setIsMobileMenuOpen(false); }} className="p-2 rounded-md text-gray-700 dark:text-gray-300">
+                  <BellIcon className="h-5 w-5" />
+                </button>
+                <button onClick={() => { setOpenChat(true); setIsMobileMenuOpen(false); }} className="p-2 rounded-md text-gray-700 dark:text-gray-300">
+                  <PaperAirplaneIcon className="h-5 w-5 -rotate-45" />
+                </button>
+              </div>
+
+              {/* Nav items */}
+              <div className="flex flex-col">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link key={item.name} href={item.href} onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center rounded-md px-3 py-2 text-sm ${isActive(item.href) ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                      <Icon className="h-5 w-5 mr-3" />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Auth links */}
+              <div className="mt-4 border-t pt-3">
+                {user && accessToken ? (
+                  <button onClick={() => { dispatch(logoutAction()); try { document.cookie = 'role=; Max-Age=0; Path=/'; } catch {}; router.push('/'); setIsMobileMenuOpen(false); }} className="w-full text-left rounded-md px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
+                    Logout
+                  </button>
+                ) : (
+                  <>
+                    <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="block rounded-md px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">Login</Link>
+                    <Link href="/register" onClick={() => setIsMobileMenuOpen(false)} className="block rounded-md px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">Sign Up</Link>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Slide-over panels */}
-      <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} />
-      <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />
+      {/* <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} /> */}
+      {/* <ChatPanel open={openChat} onClose={() => setOpenChat(false)} /> */}
     </nav>
   );
 }
