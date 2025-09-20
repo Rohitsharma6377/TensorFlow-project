@@ -1,6 +1,6 @@
 import './globals.css'
-import 'antd/dist/reset.css'
 import React from 'react'
+import { NextUIProvider } from "@nextui-org/react";
 import { Inter } from 'next/font/google'
 import { Navbar } from '@/components/navbar'
 import Providers from './providers'
@@ -37,15 +37,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         ></script>
       </head>
       <body className={`${inter.className} emerald-sky-bg text-slate-900 dark:text-slate-100 min-h-screen antialiased overflow-x-hidden`}>
-        <Providers>
-          <InitAuth />
-          <div className="flex flex-col">
-            <Navbar />
-            <main className="flex-1 min-h-screen overflow-y-auto">
-              {children}
-            </main>
-          </div>
-        </Providers>
+        <NextUIProvider>
+          <Providers>
+            <InitAuth />
+            <div className="flex flex-col">
+              <Navbar />
+              <main className="flex-1 min-h-screen overflow-y-auto">
+                {children}
+              </main>
+            </div>
+          </Providers>
+        </NextUIProvider>
       </body>
     </html>
   );

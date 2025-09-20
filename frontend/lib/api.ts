@@ -49,11 +49,12 @@ export async function api<T = any>(
   path: string, 
   options: ApiOptions = {}
 ): Promise<T> {
+  const isFormData = (typeof FormData !== 'undefined') && options.body instanceof FormData;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers as Record<string, string>),
   };
-  
+
   // Add auth header if not skipped
   if (!options.skipAuth) {
     const token = getAuthToken();
@@ -290,6 +291,17 @@ export const AuthAPI = {
   },
 };
 
+export type VariantDTO = {
+  sku?: string;
+  attributes?: Record<string, any>;
+  price: number;
+  mrp?: number;
+  stock?: number;
+  images?: string[];
+  mainImage?: string;
+  status?: 'active' | 'archived';
+};
+
 export interface ProductDTO {
   _id?: string;
   shopId: string;
@@ -297,8 +309,23 @@ export interface ProductDTO {
   sku?: string;
   description?: string;
   price: number;
+  mrp?: number;
+  currency?: string;
+  taxRate?: number;
   stock?: number;
   images?: string[];
+  mainImage?: string;
+  // legacy text fields
+  brand?: string;
+  category?: string;
+  tags?: string[];
+  // new relational refs
+  brandId?: string;
+  categoryId?: string;
+  tagIds?: string[];
+  attributes?: Record<string, any>;
+  options?: Record<string, any>;
+  variants?: VariantDTO[];
   status?: 'draft' | 'active' | 'archived';
 }
 
@@ -351,6 +378,101 @@ export const FeedAPI = {
 export const WishlistAPI = {
   async add(productId: string) {
     return api<{ success: boolean }>(`/api/v1/products/${productId}/wishlist`, { method: 'POST' });
+  },
+};
+
+// Brand/Category/Tag DTOs and APIs
+export interface BrandDTO {
+  _id?: string;
+  shop: string;
+  name: string;
+  description?: string;
+  logo?: string; // URL returned by server
+  active?: boolean;
+}
+
+export const BrandsAPI = {
+  async list(shop?: string) {
+    const q = shop ? `?shop=${shop}` : '';
+    return api<{ success: boolean; brands: BrandDTO[] }>(`/api/v1/brands${q}`, { method: 'GET' });
+  },
+  async get(id: string) {
+    return api<{ success: boolean; brand: BrandDTO }>(`/api/v1/brands/${id}`, { method: 'GET' });
+  },
+  async create(payload: Omit<BrandDTO, '_id' | 'logo'> & { logoFile?: File }) {
+    const fd = new FormData();
+    fd.append('shop', payload.shop);
+    fd.append('name', payload.name);
+    if (payload.description) fd.append('description', payload.description);
+    if (typeof payload.active === 'boolean') fd.append('active', String(payload.active));
+    if (payload.logoFile) fd.append('file', payload.logoFile);
+    return api<{ success: boolean; brand: BrandDTO }>(`/api/v1/brands`, { method: 'POST', body: fd as any });
+  },
+  async update(id: string, payload: Partial<Omit<BrandDTO, '_id'>> & { logoFile?: File }) {
+    const fd = new FormData();
+    if (payload.name) fd.append('name', payload.name);
+    if (payload.description !== undefined) fd.append('description', payload.description);
+    if (payload.active !== undefined) fd.append('active', String(payload.active));
+    if (payload.logoFile) fd.append('file', payload.logoFile);
+    return api<{ success: boolean; brand: BrandDTO }>(`/api/v1/brands/${id}`, { method: 'PUT', body: fd as any });
+  },
+  async remove(id: string) {
+    return api<{ success: boolean }>(`/api/v1/brands/${id}`, { method: 'DELETE' });
+  },
+};
+
+export interface CategoryDTO {
+  _id?: string;
+  shop: string;
+  name: string;
+  description?: string;
+  parent?: string; // id
+  active?: boolean;
+}
+
+export const CategoriesAPI = {
+  async list(shop?: string) {
+    const q = shop ? `?shop=${shop}` : '';
+    return api<{ success: boolean; categories: CategoryDTO[] }>(`/api/v1/categories${q}`, { method: 'GET' });
+  },
+  async get(id: string) {
+    return api<{ success: boolean; category: CategoryDTO }>(`/api/v1/categories/${id}`, { method: 'GET' });
+  },
+  async create(payload: Omit<CategoryDTO, '_id'>) {
+    return api<{ success: boolean; category: CategoryDTO }>(`/api/v1/categories`, { method: 'POST', body: JSON.stringify(payload) });
+  },
+  async update(id: string, payload: Partial<Omit<CategoryDTO, '_id' | 'shop'>>) {
+    return api<{ success: boolean; category: CategoryDTO }>(`/api/v1/categories/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+  },
+  async remove(id: string) {
+    return api<{ success: boolean }>(`/api/v1/categories/${id}`, { method: 'DELETE' });
+  },
+};
+
+export interface TagDTO {
+  _id?: string;
+  shop: string;
+  name: string;
+  description?: string;
+  active?: boolean;
+}
+
+export const TagsAPI = {
+  async list(shop?: string) {
+    const q = shop ? `?shop=${shop}` : '';
+    return api<{ success: boolean; tags: TagDTO[] }>(`/api/v1/tags${q}`, { method: 'GET' });
+  },
+  async get(id: string) {
+    return api<{ success: boolean; tag: TagDTO }>(`/api/v1/tags/${id}`, { method: 'GET' });
+  },
+  async create(payload: Omit<TagDTO, '_id'>) {
+    return api<{ success: boolean; tag: TagDTO }>(`/api/v1/tags`, { method: 'POST', body: JSON.stringify(payload) });
+  },
+  async update(id: string, payload: Partial<Omit<TagDTO, '_id' | 'shop'>>) {
+    return api<{ success: boolean; tag: TagDTO }>(`/api/v1/tags/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+  },
+  async remove(id: string) {
+    return api<{ success: boolean }>(`/api/v1/tags/${id}`, { method: 'DELETE' });
   },
 };
 

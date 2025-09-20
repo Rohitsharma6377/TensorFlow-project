@@ -48,6 +48,35 @@ router.post(
         } catch { variants = undefined; }
       }
 
+      // If variant files were uploaded with fields variantFiles[<index>], attach them to corresponding variant
+      if (Array.isArray(variants) && req.uploadedByField) {
+        variants = variants.map((v, i) => {
+          const key = `variantFiles[${i}]`;
+          const files = req.uploadedByField[key];
+          if (Array.isArray(files) && files.length) {
+            return { ...v, images: files, mainImage: v.mainImage || files[0] };
+          }
+          return v;
+        });
+      }
+
+      // tagIds can be sent as JSON string or array of ids
+      let tagIds;
+      if (req.body.tagIds) {
+        try {
+          const t = typeof req.body.tagIds === 'string' ? JSON.parse(req.body.tagIds) : req.body.tagIds;
+          if (Array.isArray(t)) tagIds = t; else tagIds = undefined;
+        } catch { tagIds = undefined; }
+      }
+
+      // optional discount parsing
+      let discount = undefined;
+      if (req.body.discount) {
+        try {
+          discount = typeof req.body.discount === 'string' ? JSON.parse(req.body.discount) : req.body.discount;
+        } catch {}
+      }
+
       const product = await Product.create({
         shopId: req.body.shopId,
         title: req.body.title,
@@ -58,13 +87,17 @@ router.post(
         taxRate: req.body.taxRate || 0,
         stock: req.body.stock || 0,
         images,
-        mainImage: req.body.mainImage,
+        mainImage: req.body.mainImage || (Array.isArray(req.uploadedUrls) && req.uploadedUrls.length ? req.uploadedUrls[0] : undefined),
         brand: req.body.brand,
         category: req.body.category,
         tags: req.body.tags || [],
+        brandId: req.body.brandId || undefined,
+        categoryId: req.body.categoryId || undefined,
+        tagIds: tagIds || undefined,
         attributes: req.body.attributes || {},
         options: req.body.options || {},
         variants: variants || [],
+        discount,
         status: req.body.status || 'active',
       });
       // Invalidate caches for product lists and details
@@ -125,7 +158,7 @@ router.put(
       if (!isOwner && !isAdmin) return res.status(403).json({ success: false, message: 'Forbidden' });
 
       let images = (req.body.images && Array.isArray(req.body.images)) ? req.body.images : (req.uploadedUrls?.length ? req.uploadedUrls : undefined);
-      const updates = (({ title, sku, description, price, mrp, taxRate, stock, attributes, status, mainImage, brand, category, options }) => ({
+      const updates = (({ title, sku, description, price, mrp, taxRate, stock, attributes, status, mainImage, brand, category, options, brandId, categoryId }) => ({
         title,
         sku,
         description,
@@ -139,13 +172,44 @@ router.put(
         brand,
         category,
         options,
+        brandId,
+        categoryId,
       }))(req.body);
       if (images !== undefined) updates.images = images;
+      if (!updates.mainImage && Array.isArray(req.uploadedUrls) && req.uploadedUrls.length) {
+        updates.mainImage = req.uploadedUrls[0];
+      }
       if (req.body.tags) updates.tags = Array.isArray(req.body.tags) ? req.body.tags : [req.body.tags];
       if (req.body.variants) {
         try {
           const v = typeof req.body.variants === 'string' ? JSON.parse(req.body.variants) : req.body.variants;
           if (Array.isArray(v)) updates.variants = v;
+        } catch {}
+      }
+      // If variant files uploaded, map them into updates.variants; if variants not provided, use existing and patch images
+      if (req.uploadedByField) {
+        const keys = Object.keys(req.uploadedByField).filter(k => k.startsWith('variantFiles['));
+        if (keys.length) {
+          let existing = updates.variants;
+          if (!existing) {
+            // Fall back to current product variants
+            existing = Array.isArray(product.variants) ? product.variants.map(v=>({ ...v.toObject?.() || v })) : [];
+          }
+          const next = existing.map((v, idx) => {
+            const key = `variantFiles[${idx}]`;
+            const files = req.uploadedByField[key];
+            if (Array.isArray(files) && files.length) {
+              return { ...v, images: files, mainImage: v.mainImage || files[0] };
+            }
+            return v;
+          });
+          updates.variants = next;
+        }
+      }
+      if (req.body.tagIds) {
+        try {
+          const t = typeof req.body.tagIds === 'string' ? JSON.parse(req.body.tagIds) : req.body.tagIds;
+          if (Array.isArray(t)) updates.tagIds = t;
         } catch {}
       }
       Object.keys(updates).forEach((k) => updates[k] === undefined && delete updates[k]);
@@ -171,7 +235,7 @@ router.delete(
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: 'Not found' });
     const shop = await Shop.findById(product.shopId);
-    const isOwner = shop && String(shop.ownerId) === String(req.user.id);
+    const isOwner = shop && String((shop.owner || shop.ownerId)) === String(req.user.id);
     const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
     if (!isOwner && !isAdmin) return res.status(403).json({ success: false, message: 'Forbidden' });
     await product.deleteOne();

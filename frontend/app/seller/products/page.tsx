@@ -2,11 +2,40 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import Box from '@mui/material/Box';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import Card from '@mui/material/Card';
+import CardHeader from '@mui/material/CardHeader';
+import CardContent from '@mui/material/CardContent';
+import Button from '@mui/material/Button';
+import Table from '@mui/material/Table';
+import TableHead from '@mui/material/TableHead';
+import TableBody from '@mui/material/TableBody';
+import TableRow from '@mui/material/TableRow';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import Paper from '@mui/material/Paper';
+import Switch from '@mui/material/Switch';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import TextField from '@mui/material/TextField';
+import Fab from '@mui/material/Fab';
+import AddIcon from '@mui/icons-material/Add';
+import IconButton from '@mui/material/IconButton';
+import EditIcon from '@mui/icons-material/Edit';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import InputLabel from '@mui/material/InputLabel';
+import FormControl from '@mui/material/FormControl';
+import Stack from '@mui/material/Stack';
+import Chip from '@mui/material/Chip';
+import { useAppDispatch, useAppSelector } from '@/store';
+import { fetchBrands, createBrand, updateBrand, deleteBrand } from '@/store/slice/brandSlice';
+import { fetchCategories, createCategory, updateCategory, deleteCategory } from '@/store/slice/categorySlice';
+import { fetchTags, createTag, updateTag, deleteTag } from '@/store/slice/tagSlice';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -31,9 +60,11 @@ export default function SellerProductsPage() {
 
   // local state for other tabs
   const [taxes, setTaxes] = useState<Array<{ id: string; name: string; percent: number; active: boolean }>>([]);
-  const [coupons, setCoupons] = useState<Array<{ id: string; code: string; type: 'percent'|'flat'; value: number; expiry?: string; active: boolean }>>([]);
-  const [categories, setCategories] = useState<Array<{ id: string; name: string; parent?: string; active: boolean }>>([]);
-  const [brands, setBrands] = useState<Array<{ id: string; name: string; logo?: string; active: boolean }>>([]);
+  const [coupons, setCoupons] = useState<Array<{ id: string; code: string; type: 'percent' | 'fixed'; value: number; expiry?: string; active: boolean }>>([]);
+  const dispatch = useAppDispatch();
+  const categories = useAppSelector(s=>s.categories.items);
+  const tagsList = useAppSelector(s=>s.tags.items);
+  const brands = useAppSelector(s=>s.brands.items);
   const [reviews, setReviews] = useState<Array<{ id: string; user: string; product: string; rating: number; comment?: string; active: boolean }>>([]);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
@@ -50,6 +81,14 @@ export default function SellerProductsPage() {
     }
     init();
   }, []);
+
+  // Load managed dictionaries when shopId becomes available
+  useEffect(() => {
+    if (!shopId) return;
+    dispatch(fetchBrands(shopId));
+    dispatch(fetchCategories(shopId));
+    dispatch(fetchTags(shopId));
+  }, [shopId, dispatch]);
 
   useEffect(() => {
     if (!shopId) return;
@@ -85,175 +124,215 @@ export default function SellerProductsPage() {
     if (res.ok) setItems(items.filter(it => it._id !== id));
   }
 
-  function HeaderTabs() {
-    return (
-      <TabsList className="w-full grid grid-cols-6 bg-white">
-        <TabsTrigger value="products">Products</TabsTrigger>
-        <TabsTrigger value="tax">Tax</TabsTrigger>
-        <TabsTrigger value="coupons">Coupons</TabsTrigger>
-        <TabsTrigger value="categories">Categories</TabsTrigger>
-        <TabsTrigger value="brands">Brands</TabsTrigger>
-        <TabsTrigger value="reviews">Reviews</TabsTrigger>
-      </TabsList>
-    );
-  }
+  const [activeTab, setActiveTab] = useState(0);
 
   return (
     <div className="space-y-6">
-      <Card className="bg-white/95 dark:bg-slate-900/80 backdrop-blur border border-slate-200 shadow-lg rounded-2xl">
-        <CardHeader>
-          <CardTitle className="text-slate-900 dark:text-slate-100">Catalog</CardTitle>
-          <CardDescription className="text-slate-600 dark:text-slate-400">Manage your products and merchandising</CardDescription>
-        </CardHeader>
+      <Card sx={{ background: 'rgba(255,255,255,0.95)', borderRadius: 3, border: '1px solid #dbeafe' }}>
+        <CardHeader title={<Box component="div" sx={{ pb: 0 }}>
+          <Box component="h2" sx={{ fontSize: 20, fontWeight: 600, color: '#0f172a', m: 0 }}>Catalog</Box>
+          <Box component="p" sx={{ color: 'text.secondary', m: 0 }}>Manage your products and merchandising</Box>
+        </Box>} sx={{ borderBottom: '1px solid #dbeafe' }} />
         <CardContent>
-          <Tabs defaultValue="products" className="w-full">
-            <HeaderTabs />
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs value={activeTab} onChange={(_, v)=>setActiveTab(v)} textColor="primary" indicatorColor="primary">
+              <Tab label="Products" />
+              <Tab label="Tax" />
+              <Tab label="Coupons" />
+              <Tab label="Categories" />
+              <Tab label="Brands" />
+              <Tab label="Reviews" />
+            </Tabs>
+          </Box>
 
-            {/* Products Tab */}
-            <TabsContent value="products" className="pt-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div />
-                <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => router.push('/seller/products/new')}>➕ Add Product</Button>
-              </div>
-
-              <div className="overflow-x-auto rounded-lg border">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="text-left p-3 font-semibold">Product Name</th>
-                      <th className="text-left p-3 font-semibold">Price</th>
-                      <th className="text-left p-3 font-semibold">Stock</th>
-                      <th className="text-left p-3 font-semibold">Status</th>
-                      <th className="text-right p-3 font-semibold">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+          {activeTab === 0 && (
+            <Box sx={{ pt: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+                <Button variant="contained" onClick={()=> router.push('/seller/products/new')} disabled={!shopId}>Add Product</Button>
+              </Box>
+              <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Product Name</TableCell>
+                      <TableCell>Price</TableCell>
+                      <TableCell>Stock</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell align="right">Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {loading ? (
-                      <tr><td colSpan={5} className="p-6 text-center text-slate-500">Loading...</td></tr>
+                      <TableRow><TableCell colSpan={5} align="center">Loading...</TableCell></TableRow>
                     ) : items.length === 0 ? (
-                      <tr><td colSpan={5} className="p-6 text-center text-slate-500">No products found.</td></tr>
+                      <TableRow><TableCell colSpan={5} align="center">No products found.</TableCell></TableRow>
                     ) : (
-                      items.map((p) => (
-                        <tr key={p._id} className="border-t hover:bg-slate-50">
-                          <td className="p-3">{p.title}</td>
-                          <td className="p-3">₹{p.price}</td>
-                          <td className="p-3">{p.stock ?? 0}</td>
-                          <td className="p-3">
-                            <button onClick={()=>toggleStatus(p._id, p.status)} className={`px-2 py-1 rounded-full text-xs border transition ${p.status==='active' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-                              {p.status === 'active' ? 'Active' : 'Inactive'}
-                            </button>
-                          </td>
-                          <td className="p-3 text-right space-x-2">
-                            <Button variant="outline" className="border-slate-300 text-slate-700" onClick={()=>router.push(`/seller/products/${p._id}`)}>✏️ Edit</Button>
-                            <Button variant="outline" className="border-red-300 text-red-700" onClick={()=>removeProduct(p._id)}>🗑 Delete</Button>
-                            <Button variant="outline" className="border-emerald-300 text-emerald-700" onClick={()=>toggleStatus(p._id, p.status)}>✅ Toggle</Button>
-                          </td>
-                        </tr>
+                      items.map((p)=> (
+                        <TableRow key={p._id} hover>
+                          <TableCell>{p.title}</TableCell>
+                          <TableCell>₹{p.price}</TableCell>
+                          <TableCell>{p.stock ?? 0}</TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Switch color="primary" checked={p.status === 'active'} onChange={()=>toggleStatus(p._id, p.status)} />
+                              <span>{p.status === 'active' ? 'Active' : 'Inactive'}</span>
+                            </Box>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                              <Button size="small" variant="outlined" onClick={()=>router.push(`/seller/products/${p._id}`)}>✏️ Edit</Button>
+                              <Button size="small" variant="outlined" color="error" onClick={()=>removeProduct(p._id)}>🗑 Delete</Button>
+                              <Button size="small" variant="outlined" color="primary" onClick={()=>toggleStatus(p._id, p.status)}>✅ Toggle</Button>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
                       ))
                     )}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, pt: 2 }}>
+                <Button variant="outlined" disabled={page<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Prev</Button>
+                <Box component="span" sx={{ color: 'text.secondary', fontSize: 14 }}>Page {page} / {totalPages}</Box>
+                <Button variant="outlined" onClick={()=>setPage(p=>p+1)}>Next</Button>
+              </Box>
+            </Box>
+          )}
 
-              <div className="flex items-center justify-end gap-2">
-                <Button variant="outline" disabled={page<=1} onClick={()=>setPage((p)=>Math.max(1,p-1))}>Prev</Button>
-                <span className="text-sm text-slate-600">Page {page} / {totalPages}</span>
-                <Button variant="outline" onClick={()=>setPage((p)=>p+1)}>Next</Button>
-              </div>
-            </TabsContent>
-
-            {/* Tax Tab */}
-            <TabsContent value="tax" className="pt-4 space-y-4">
-              <InlineAdd
-                buttonLabel="➕ Add Tax"
-                onAdd={(name) => setTaxes([...taxes, { id: crypto.randomUUID(), name, percent: 0, active: true }])}
-              />
+          {activeTab === 1 && (
+            <Box sx={{ pt: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                <EditTaxDialog onSave={(tax)=> setTaxes((prev)=>[{ id: crypto.randomUUID(), ...tax, active: true }, ...prev])} />
+              </Box>
               <SimpleTable
                 headers={["Tax Name","Percentage","Status","Actions"]}
-                rows={taxes.map(t => ([
+                rows={taxes.map(t=> [
                   t.name,
-                  <span key="p">{t.percent}%</span>,
+                  `${t.percent}%`,
                   t.active ? 'Active' : 'Inactive',
-                  <RowActions key="a" onToggle={()=>setTaxes(taxes.map(x=>x.id===t.id?{...x,active:!x.active}:x))} onDelete={()=>setTaxes(taxes.filter(x=>x.id!==t.id))} />
-                ]))}
+                  <RowActions key={t.id}
+                    onEdit={()=> setTaxes(taxes.map(x=> x.id===t.id? x : x))}
+                    editRenderer={<EditTaxDialog initial={{ name: t.name, percent: t.percent }} onSave={(val)=> setTaxes(taxes.map(x=> x.id===t.id? { ...x, ...val }: x))} small />}
+                    onToggle={()=>setTaxes(taxes.map(x=>x.id===t.id?{...x,active:!x.active}:x))}
+                    onDelete={()=>setTaxes(taxes.filter(x=>x.id!==t.id))}
+                  />
+                ])}
               />
-            </TabsContent>
+            </Box>
+          )}
 
-            {/* Coupons Tab */}
-            <TabsContent value="coupons" className="pt-4 space-y-4">
-              <InlineAdd
-                buttonLabel="➕ Add Coupon"
-                onAdd={(code) => setCoupons([...coupons, { id: crypto.randomUUID(), code, type: 'percent', value: 10, active: true }])}
-              />
+          {activeTab === 2 && (
+            <Box sx={{ pt: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                <EditCouponDialog onSave={(cp)=> setCoupons((prev)=>[{ id: crypto.randomUUID(), ...cp, active: true }, ...prev])} />
+              </Box>
               <SimpleTable
                 headers={["Coupon Code","Discount Type","Value","Expiry Date","Status","Actions"]}
-                rows={coupons.map(c => ([
+                rows={coupons.map(c=> [
                   c.code,
                   c.type,
                   String(c.value),
                   c.expiry || '-',
                   c.active ? 'Active' : 'Inactive',
-                  <RowActions key="a" onToggle={()=>setCoupons(coupons.map(x=>x.id===c.id?{...x,active:!x.active}:x))} onDelete={()=>setCoupons(coupons.filter(x=>x.id!==c.id))} />
-                ]))}
+                  <RowActions key={c.id}
+                    onEdit={()=> setCoupons(coupons.map(x=> x.id===c.id? x : x))}
+                    editRenderer={<EditCouponDialog initial={{ code: c.code, type: c.type, value: c.value, expiry: c.expiry }} onSave={(val)=> setCoupons(coupons.map(x=> x.id===c.id? { ...x, ...val }: x))} small />}
+                    onToggle={()=>setCoupons(coupons.map(x=>x.id===c.id?{...x,active:!x.active}:x))}
+                    onDelete={()=>setCoupons(coupons.filter(x=>x.id!==c.id))}
+                  />
+                ])}
               />
-            </TabsContent>
+            </Box>
+          )}
 
-            {/* Categories Tab */}
-            <TabsContent value="categories" className="pt-4 space-y-4">
-              <InlineAdd
-                buttonLabel="➕ Add Category"
-                onAdd={(name) => setCategories([...categories, { id: crypto.randomUUID(), name, active: true }])}
-              />
-              <SimpleTable
-                headers={["Category Name","Parent Category","Status","Actions"]}
-                rows={categories.map(c => ([
-                  c.name,
-                  c.parent || '-',
-                  c.active ? 'Active' : 'Inactive',
-                  <RowActions key="a" onToggle={()=>setCategories(categories.map(x=>x.id===c.id?{...x,active:!x.active}:x))} onDelete={()=>setCategories(categories.filter(x=>x.id!==c.id))} />
-                ]))}
-              />
-            </TabsContent>
+          {activeTab === 3 && (
+            <Box sx={{ pt: 2 }}>
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mb: 1 }}>
+                <AddCategoryDialog
+                  disabled={!shopId}
+                  onSave={(cat)=> shopId && dispatch(createCategory({ shop: shopId, name: cat.name, description: cat.description, parent: cat.parent }))}
+                />
+                <AddTagDialog
+                  disabled={!shopId}
+                  onSave={(tag)=> shopId && dispatch(createTag({ shop: shopId, name: tag.name, description: tag.description }))}
+                />
+              </Box>
+              <Box sx={{ display: 'grid', gap: 2 }}>
+                <Box>
+                  <Box component="h4" sx={{ fontWeight: 600, mb: 1 }}>Categories</Box>
+                  <SimpleTable
+                    headers={["Category Name","Description","Parent","Status","Actions"]}
+                    rows={categories.map(c=> [
+                      c.name,
+                      c.description || '-',
+                      c.parent || '-',
+                      c.active ? 'Active' : 'Inactive',
+                      <RowActions key={c._id || c.name}
+                        onEdit={()=>{}}
+                        editRenderer={<EditCategoryDialog initial={{ name: c.name, description: c.description, parent: typeof c.parent === 'string' ? c.parent : '' }} onSave={(val)=> dispatch(updateCategory({ id: String(c._id), payload: val }))} small />}
+                        onToggle={()=> dispatch(updateCategory({ id: String(c._id), payload: { active: !c.active } }))}
+                        onDelete={()=> dispatch(deleteCategory(String(c._id)))}
+                      />
+                    ])}
+                  />
+                </Box>
+                <Box>
+                  <Box component="h4" sx={{ fontWeight: 600, mb: 1 }}>Tags</Box>
+                  <SimpleTable
+                    headers={["Tag Name","Description","Status","Actions"]}
+                    rows={tagsList.map(t=> [
+                      t.name,
+                      t.description || '-',
+                      t.active ? 'Active' : 'Inactive',
+                      <RowActions key={t._id || t.name}
+                        onEdit={()=>{}}
+                        editRenderer={<EditTagDialog initial={{ name: t.name, description: t.description }} onSave={(val)=> dispatch(updateTag({ id: String(t._id), payload: val }))} small />}
+                        onToggle={()=> dispatch(updateTag({ id: String(t._id), payload: { active: !t.active } }))}
+                        onDelete={()=> dispatch(deleteTag(String(t._id)))}
+                      />
+                    ])}
+                  />
+                </Box>
+              </Box>
+            </Box>
+          )}
 
-            {/* Brands Tab */}
-            <TabsContent value="brands" className="pt-4 space-y-4">
-              <InlineAdd
-                buttonLabel="➕ Add Brand"
-                onAdd={(name) => setBrands([...brands, { id: crypto.randomUUID(), name, active: true }])}
-              />
+          {activeTab === 4 && (
+            <Box sx={{ pt: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+                <AddBrandDialog
+                  disabled={!shopId}
+                  onSave={(brand)=> { if (!shopId) return; dispatch(createBrand({ shop: shopId, name: brand.name, description: brand.description, logoFile: brand.logoFile })); }}
+                />
+              </Box>
               <SimpleTable
-                headers={["Brand Name","Logo","Status","Actions"]}
-                rows={brands.map(b => ([
+                headers={["Brand Name","Logo","Description","Status","Actions"]}
+                rows={brands.map(b=> [
                   b.name,
-                  b.logo ? <img key="l" src={b.logo} alt="logo" className="h-6" /> : '-',
+                  b.logo ? <img key={`l-${b._id}`} src={b.logo} alt="logo" className="h-8 rounded"/> : '-',
+                  b.description || '-',
                   b.active ? 'Active' : 'Inactive',
-                  <RowActions key="a" onToggle={()=>setBrands(brands.map(x=>x.id===b.id?{...x,active:!x.active}:x))} onDelete={()=>setBrands(brands.filter(x=>x.id!==b.id))} />
-                ]))}
+                  <RowActions key={b._id || b.name} onToggle={()=> dispatch(updateBrand({ id: String(b._id), payload: { active: !b.active } }))} onDelete={()=> dispatch(deleteBrand(String(b._id)))} />
+                ])}
               />
-            </TabsContent>
+            </Box>
+          )}
 
-            {/* Reviews Tab */}
-            <TabsContent value="reviews" className="pt-4 space-y-4">
-              <InlineAdd
-                buttonLabel="➕ Add Review"
-                onAdd={(name) => setReviews([...reviews, { id: crypto.randomUUID(), user: name, product: '-', rating: 5, active: true } as any])}
-              />
-              <SimpleTable
-                headers={["Reviewer Name","Product","Rating","Comment","Status","Actions"]}
-                rows={reviews.map(r => ([
-                  r.user,
-                  r.product,
-                  '⭐'.repeat(r.rating || 0),
-                  r.comment || '-',
-                  r.active ? 'Active' : 'Inactive',
-                  <RowActions key="a" onToggle={()=>setReviews(reviews.map(x=>x.id===r.id?{...x,active:!x.active}:x))} onDelete={()=>setReviews(reviews.filter(x=>x.id!==r.id))} />
-                ]))}
-              />
-            </TabsContent>
-
-          </Tabs>
+          {activeTab === 5 && (
+            <TabPanelAdd
+              title="Add Review"
+              onAdd={(name)=> setReviews([...reviews, { id: crypto.randomUUID(), user: name, product: '-', rating: 5, active: true } as any])}
+              headers={["Reviewer Name","Product","Rating","Comment","Status","Actions"]}
+              rows={reviews.map(r=> [r.user, r.product, '⭐'.repeat(r.rating || 0), r.comment || '-', r.active ? 'Active' : 'Inactive',
+                <RowActions key={r.id} onToggle={()=>setReviews(reviews.map(x=>x.id===r.id?{...x,active:!x.active}:x))} onDelete={()=>setReviews(reviews.filter(x=>x.id!==r.id))} />])}
+            />
+          )}
         </CardContent>
       </Card>
+
+      <Fab color="primary" sx={{ position: 'fixed', right: 24, bottom: 24 }} onClick={()=>router.push('/seller/products/new')}>
+        <AddIcon />
+      </Fab>
     </div>
   );
 }
@@ -262,49 +341,519 @@ function InlineAdd({ buttonLabel, onAdd }: { buttonLabel: string; onAdd: (value:
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   return (
-    <div className="flex items-center justify-end gap-3">
-      {open && (
-        <div className="flex items-center gap-2 bg-slate-50 border rounded-md p-2">
-          <Input value={value} onChange={(e)=>setValue(e.target.value)} placeholder="Enter name" />
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={()=>{ if(value.trim()){ onAdd(value.trim()); setValue(''); setOpen(false);} }}>Save</Button>
-          <Button variant="outline" onClick={()=>{ setOpen(false); setValue(''); }}>Cancel</Button>
-        </div>
-      )}
-      {!open && (
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={()=>setOpen(true)}>{buttonLabel}</Button>
-      )}
-    </div>
+    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+      <Button variant="contained" onClick={()=>setOpen(true)}>{buttonLabel}</Button>
+      <Dialog open={open} onClose={()=>setOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Add</DialogTitle>
+        <DialogContent>
+          <TextField autoFocus margin="dense" label="Name" fullWidth value={value} onChange={(e)=>setValue(e.target.value)} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setOpen(false)}>Cancel</Button>
+          <Button onClick={()=>{ if(value.trim()){ onAdd(value.trim()); setValue(''); setOpen(false); } }} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 }
 
 function SimpleTable({ headers, rows }: { headers: string[]; rows: any[][] }) {
   return (
-    <div className="overflow-x-auto rounded-lg border">
-      <table className="min-w-full text-sm">
-        <thead className="bg-slate-50">
-          <tr>
-            {headers.map(h => <th key={h} className="text-left p-3 font-semibold">{h}</th>)}
-          </tr>
-        </thead>
-        <tbody>
+    <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid #e2e8f0', mt: 1 }}>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            {headers.map((h)=> <TableCell key={h}>{h}</TableCell>)}
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {rows.length === 0 ? (
-            <tr><td colSpan={headers.length} className="p-6 text-center text-slate-500">No records</td></tr>
-          ) : rows.map((cols, i) => (
-            <tr key={i} className="border-t hover:bg-slate-50">
-              {cols.map((c, j) => <td key={j} className="p-3">{c}</td>)}
-            </tr>
+            <TableRow><TableCell colSpan={headers.length} align="center">No records</TableCell></TableRow>
+          ) : rows.map((cols, i)=> (
+            <TableRow key={i} hover>
+              {cols.map((c, j)=> <TableCell key={j}>{c}</TableCell>)}
+            </TableRow>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 }
 
-function RowActions({ onToggle, onDelete }: { onToggle: () => void; onDelete: () => void }) {
+function TabPanelAdd({ title, onAdd, headers, rows }: { title: string; onAdd: (value: string) => void; headers: string[]; rows: any[][] }) {
   return (
-    <div className="flex justify-end gap-2">
-      <Button variant="outline" className="border-slate-300 text-slate-700" onClick={onToggle}>✅ Toggle</Button>
-      <Button variant="outline" className="border-red-300 text-red-700" onClick={onDelete}>🗑 Delete</Button>
-    </div>
+    <Box sx={{ pt: 2 }}>
+      <InlineAdd buttonLabel={`➕ ${title}`} onAdd={onAdd} />
+      <SimpleTable headers={headers} rows={rows} />
+    </Box>
+  );
+}
+
+type CategoryInput = { name: string; description?: string; parent?: string };
+type TagInput = { name: string; description?: string };
+type BrandInput = { name: string; description?: string; logo?: string; logoFile?: File };
+
+function AddCategoryDialog({ disabled, onSave }: { disabled?: boolean; onSave: (cat: CategoryInput) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [parent, setParent] = useState('');
+  const canSave = name.trim().length > 0;
+  return (
+    <>
+      <Button variant="contained" disabled={disabled} onClick={()=>setOpen(true)}>➕ Add Category</Button>
+      <Dialog open={open} onClose={()=>setOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Add Category</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gap: 2, pt: 1 }}>
+            <TextField label="Name" value={name} onChange={(e)=>setName(e.target.value)} autoFocus required/>
+            <TextField label="Description" value={description} onChange={(e)=>setDescription(e.target.value)} multiline minRows={2}/>
+            <TextField label="Parent (optional)" value={parent} onChange={(e)=>setParent(e.target.value)}/>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setOpen(false)}>Cancel</Button>
+          <Button variant="contained" disabled={!canSave} onClick={()=>{
+            const trimmedParent = parent.trim();
+            const looksLikeId = /^[a-fA-F0-9]{24}$/.test(trimmedParent);
+            onSave({ name: name.trim(), description: description.trim() || undefined, parent: looksLikeId ? trimmedParent : undefined });
+            setOpen(false); setName(''); setDescription(''); setParent('');
+          }}>Save</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
+
+function AddTagDialog({ disabled, onSave }: { disabled?: boolean; onSave: (tag: TagInput) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const canSave = name.trim().length > 0;
+  return (
+    <>
+      <Button variant="outlined" disabled={disabled} onClick={()=>setOpen(true)}>➕ Add Tag</Button>
+      <Dialog open={open} onClose={()=>setOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Add Tag</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gap: 2, pt: 1 }}>
+            <TextField label="Name" value={name} onChange={(e)=>setName(e.target.value)} autoFocus required/>
+            <TextField label="Description" value={description} onChange={(e)=>setDescription(e.target.value)} multiline minRows={2}/>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setOpen(false)}>Cancel</Button>
+          <Button variant="contained" disabled={!canSave} onClick={()=>{ onSave({ name: name.trim(), description: description.trim() || undefined }); setOpen(false); setName(''); setDescription(''); }}>Save</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
+
+function AddBrandDialog({ disabled, onSave }: { disabled?: boolean; onSave: (brand: BrandInput) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [logo, setLogo] = useState<string | undefined>(undefined);
+  const [logoFile, setLogoFile] = useState<File | undefined>(undefined);
+  const canSave = name.trim().length > 0;
+
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setLogoFile(f);
+    const url = URL.createObjectURL(f);
+    setLogo(url);
+  }
+
+  return (
+    <>
+      <Button variant="contained" disabled={disabled} onClick={()=>setOpen(true)}>➕ Add Brand</Button>
+      <Dialog open={open} onClose={()=>setOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Add Brand</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gap: 2, pt: 1 }}>
+            <TextField label="Name" value={name} onChange={(e)=>setName(e.target.value)} autoFocus required/>
+            <TextField label="Description" value={description} onChange={(e)=>setDescription(e.target.value)} multiline minRows={2}/>
+            <Box>
+              <Button component="label" variant="outlined">Upload Logo
+                <input hidden type="file" accept="image/*" onChange={onFile} />
+              </Button>
+              {logo && <img src={logo} alt="logo preview" className="mt-2 h-16 rounded border" />}
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setOpen(false)}>Cancel</Button>
+          <Button variant="contained" disabled={!canSave} onClick={()=>{ onSave({ name: name.trim(), description: description.trim() || undefined, logo, logoFile }); setOpen(false); setName(''); setDescription(''); setLogo(undefined); setLogoFile(undefined); }}>Save</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
+
+function RowActions({ onToggle, onDelete, onEdit, editRenderer }: { onToggle: () => void; onDelete: () => void; onEdit?: () => void; editRenderer?: React.ReactNode }) {
+  return (
+    <Stack direction="row" justifyContent="flex-end" spacing={1}>
+      {editRenderer ? editRenderer : (
+        onEdit ? (
+          <IconButton size="small" onClick={onEdit} aria-label="edit"><EditIcon fontSize="small"/></IconButton>
+        ) : null
+      )}
+      <Button size="small" variant="outlined" onClick={onToggle}>✅ Toggle</Button>
+      <Button size="small" variant="outlined" color="error" onClick={onDelete}>🗑 Delete</Button>
+    </Stack>
+  );
+}
+
+// Dialogs
+type TaxInput = { name: string; percent: number };
+function EditTaxDialog({ initial, onSave, small }: { initial?: TaxInput; onSave: (t: TaxInput) => void; small?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(initial?.name || '');
+  const [percent, setPercent] = useState<number>(initial?.percent ?? 0);
+  const canSave = name.trim().length > 0 && percent >= 0;
+  const trigger = small ? (
+    <IconButton size="small" onClick={()=>setOpen(true)} aria-label="edit"><EditIcon fontSize="small"/></IconButton>
+  ) : (
+    <Button variant="contained" onClick={()=>setOpen(true)}>➕ Add Tax</Button>
+  );
+  return (
+    <>
+      {trigger}
+      <Dialog open={open} onClose={()=>setOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>{initial ? 'Edit Tax' : 'Add Tax'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField label="Name" value={name} onChange={(e)=>setName(e.target.value)} autoFocus required/>
+            <TextField label="Percent" type="number" value={percent} onChange={(e)=>setPercent(Number(e.target.value))}/>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setOpen(false)}>Cancel</Button>
+          <Button variant="contained" disabled={!canSave} onClick={()=>{ onSave({ name: name.trim(), percent }); setOpen(false); }}>Save</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
+
+type CouponInput = { code: string; type: 'percent' | 'fixed'; value: number; expiry?: string };
+function EditCouponDialog({ initial, onSave, small }: { initial?: CouponInput; onSave: (c: CouponInput) => void; small?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState(initial?.code || '');
+  const [type, setType] = useState<CouponInput['type']>(initial?.type || 'percent');
+  const [value, setValue] = useState<number>(initial?.value ?? 0);
+  const [expiry, setExpiry] = useState(initial?.expiry || '');
+  const canSave = code.trim().length > 0 && value >= 0;
+  const trigger = small ? (
+    <IconButton size="small" onClick={()=>setOpen(true)} aria-label="edit"><EditIcon fontSize="small"/></IconButton>
+  ) : (
+    <Button variant="contained" onClick={()=>setOpen(true)}>➕ Add Coupon</Button>
+  );
+  return (
+    <>
+      {trigger}
+      <Dialog open={open} onClose={()=>setOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>{initial ? 'Edit Coupon' : 'Add Coupon'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField label="Code" value={code} onChange={(e)=>setCode(e.target.value)} autoFocus required/>
+            <FormControl>
+              <InputLabel id="discount-type">Discount Type</InputLabel>
+              <Select labelId="discount-type" label="Discount Type" value={type} onChange={(e)=> setType(e.target.value as any)}>
+                <MenuItem value="percent">Percent</MenuItem>
+                <MenuItem value="fixed">Fixed Amount</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField label={type === 'percent' ? 'Percent (%)' : 'Amount'} type="number" value={value} onChange={(e)=>setValue(Number(e.target.value))}/>
+            <TextField label="Expiry (optional)" placeholder="YYYY-MM-DD" value={expiry} onChange={(e)=>setExpiry(e.target.value)} />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setOpen(false)}>Cancel</Button>
+          <Button variant="contained" disabled={!canSave} onClick={()=>{ onSave({ code: code.trim(), type, value, expiry: expiry.trim() || undefined }); setOpen(false); }}>Save</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
+
+function EditCategoryDialog({ initial, onSave, small }: { initial?: CategoryInput; onSave: (val: Partial<CategoryInput>) => void; small?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(initial?.name || '');
+  const [description, setDescription] = useState(initial?.description || '');
+  const [parent, setParent] = useState(initial?.parent || '');
+  const canSave = name.trim().length > 0;
+  const trigger = small ? (
+    <IconButton size="small" onClick={()=>setOpen(true)} aria-label="edit"><EditIcon fontSize="small"/></IconButton>
+  ) : (
+    <Button variant="contained" onClick={()=>setOpen(true)}>Edit Category</Button>
+  );
+  return (
+    <>
+      {trigger}
+      <Dialog open={open} onClose={()=>setOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>{initial ? 'Edit Category' : 'Add Category'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField label="Name" value={name} onChange={(e)=>setName(e.target.value)} autoFocus required/>
+            <TextField label="Description" value={description} onChange={(e)=>setDescription(e.target.value)} multiline minRows={2}/>
+            <TextField label="Parent (optional)" value={parent} onChange={(e)=>setParent(e.target.value)}/>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setOpen(false)}>Cancel</Button>
+          <Button variant="contained" disabled={!canSave} onClick={()=>{
+            const trimmedParent = parent.trim();
+            const looksLikeId = /^[a-fA-F0-9]{24}$/.test(trimmedParent);
+            onSave({ name: name.trim(), description: description.trim() || undefined, parent: looksLikeId ? trimmedParent : undefined });
+            setOpen(false);
+          }}>Save</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
+
+function EditTagDialog({ initial, onSave, small }: { initial?: TagInput; onSave: (val: Partial<TagInput>) => void; small?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(initial?.name || '');
+  const [description, setDescription] = useState(initial?.description || '');
+  const canSave = name.trim().length > 0;
+  const trigger = small ? (
+    <IconButton size="small" onClick={()=>setOpen(true)} aria-label="edit"><EditIcon fontSize="small"/></IconButton>
+  ) : (
+    <Button variant="contained" onClick={()=>setOpen(true)}>Edit Tag</Button>
+  );
+  return (
+    <>
+      {trigger}
+      <Dialog open={open} onClose={()=>setOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>{initial ? 'Edit Tag' : 'Add Tag'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField label="Name" value={name} onChange={(e)=>setName(e.target.value)} autoFocus required/>
+            <TextField label="Description" value={description} onChange={(e)=>setDescription(e.target.value)} multiline minRows={2}/>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setOpen(false)}>Cancel</Button>
+          <Button variant="contained" disabled={!canSave} onClick={()=>{ onSave({ name: name.trim(), description: description.trim() || undefined }); setOpen(false); }}>Save</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
+
+function NewProductDialogEx({ shopId, onCreated, taxes }: { shopId: string | null; onCreated: (p: any) => void; taxes: Array<{ id: string; name: string; percent: number; active: boolean }> }) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [sku, setSku] = useState('');
+  const [price, setPrice] = useState<number>(0);
+  const [mrp, setMrp] = useState<number | ''>('');
+  const [currency, setCurrency] = useState('INR');
+  const [taxRate, setTaxRate] = useState<number | ''>('');
+  const [stock, setStock] = useState<number>(0);
+  const [description, setDescription] = useState('');
+  const [status, setStatus] = useState<'draft' | 'active' | 'archived'>('active');
+  const brandsState = useAppSelector(s=>s.brands.items);
+  const categoriesState = useAppSelector(s=>s.categories.items);
+  const tagsState = useAppSelector(s=>s.tags.items);
+  const [brandId, setBrandId] = useState<string>('');
+  const [categoryId, setCategoryId] = useState<string>('');
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [mainFile, setMainFile] = useState<File | null>(null);
+  const [imagesCsv, setImagesCsv] = useState('');
+  const [variants, setVariants] = useState<Array<{ sku?: string; price: number; stock?: number }>>([]);
+  const [variantImageUrls, setVariantImageUrls] = useState<Record<number, string>>({});
+  const [applyCoupon, setApplyCoupon] = useState(false);
+  const [couponType, setCouponType] = useState<'percent' | 'fixed'>('percent');
+  const [couponValue, setCouponValue] = useState<number | ''>('');
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+  const saving = false;
+  const canSave = !!shopId && title.trim().length > 1 && price > 0;
+  function addVariant() {
+    setVariants(v=> [...v, { sku: '', price: 0, stock: 0 }]);
+  }
+  function updateVariant(i: number, patch: Partial<{ sku?: string; price: number; stock?: number }>) {
+    setVariants(v=> v.map((row, idx)=> idx===i ? { ...row, ...patch } : row));
+  }
+  function removeVariant(i: number) { setVariants(v=> v.filter((_, idx)=> idx!==i)); }
+  return (
+    <>
+      <Button variant="contained" onClick={()=>setOpen(true)} disabled={!shopId}>➕ Add Product</Button>
+      <Dialog open={open} onClose={()=>setOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>New Product</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField label="Title" value={title} onChange={(e)=>setTitle(e.target.value)} autoFocus required sx={{ bgcolor: 'white' }}/>
+            <TextField label="SKU (optional)" value={sku} onChange={(e)=>setSku(e.target.value)} sx={{ bgcolor: 'white' }}/>
+            <Stack direction="row" spacing={2}>
+              <TextField label="Price" type="number" value={price} onChange={(e)=>setPrice(Number(e.target.value))} required sx={{ flex: 1, bgcolor: 'white' }}/>
+              <TextField label="MRP (optional)" type="number" value={mrp} onChange={(e)=>setMrp(e.target.value === '' ? '' : Number(e.target.value))} sx={{ flex: 1, bgcolor: 'white' }}/>
+            </Stack>
+            <Stack direction="row" spacing={2}>
+              <TextField label="Currency" value={currency} onChange={(e)=>setCurrency(e.target.value)} sx={{ flex: 1, bgcolor: 'white' }}/>
+              <FormControl sx={{ flex: 1 }}>
+                <InputLabel id="tax-select">Tax</InputLabel>
+                <Select labelId="tax-select" label="Tax" value={String(taxRate === '' ? '' : taxRate)} onChange={(e)=>{
+                  const v = e.target.value as string; if (v==='') setTaxRate(''); else setTaxRate(Number(v));
+                }}>
+                  <MenuItem value=""><em>None</em></MenuItem>
+                  {taxes.map((t) => <MenuItem key={t.id} value={String(t.percent)}>{t.name} ({t.percent}%)</MenuItem>)}
+                </Select>
+              </FormControl>
+              <TextField label="Stock" type="number" value={stock} onChange={(e)=>setStock(Number(e.target.value))} sx={{ flex: 1, bgcolor: 'white' }}/>
+            </Stack>
+            <TextField label="Description" value={description} onChange={(e)=>setDescription(e.target.value)} multiline minRows={3} sx={{ bgcolor: 'white' }} helperText="We can integrate CKEditor here if you want rich text."/>
+
+            <FormControl fullWidth>
+              <InputLabel id="status-label">Status</InputLabel>
+              <Select labelId="status-label" label="Status" value={status} onChange={(e)=> setStatus(e.target.value as any)}>
+                <MenuItem value="draft">Draft</MenuItem>
+                <MenuItem value="active">Active</MenuItem>
+                <MenuItem value="archived">Archived</MenuItem>
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel id="brand-label">Brand</InputLabel>
+              <Select labelId="brand-label" label="Brand" value={brandId} onChange={(e)=> setBrandId(e.target.value as string)}>
+                <MenuItem value=""><em>None</em></MenuItem>
+                {brandsState.map(b=> <MenuItem key={b._id} value={String(b._id)}>{b.name}</MenuItem>)}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel id="category-label">Category</InputLabel>
+              <Select labelId="category-label" label="Category" value={categoryId} onChange={(e)=> setCategoryId(e.target.value as string)}>
+                <MenuItem value=""><em>None</em></MenuItem>
+                {categoriesState.map(c=> <MenuItem key={c._id} value={String(c._id)}>{c.name}</MenuItem>)}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel id="tags-label">Tags</InputLabel>
+              <Select multiple labelId="tags-label" label="Tags" value={tagIds} onChange={(e)=> setTagIds(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value as string[])} renderValue={(selected)=> (
+                <Stack direction="row" spacing={1} flexWrap="wrap">{(selected as string[]).map(id=> {
+                  const t = tagsState.find(x=> String(x._id)===String(id));
+                  return <Chip key={id} size="small" label={t?.name || id} />
+                })}</Stack>
+              )}>
+                {tagsState.map(t=> <MenuItem key={t._id} value={String(t._id)}>{t.name}</MenuItem>)}
+              </Select>
+            </FormControl>
+
+            <Button component="label" variant="outlined">Upload Main Image
+              <input hidden type="file" accept="image/*" onChange={(e)=> setMainFile((e.target.files && e.target.files[0]) || null)} />
+            </Button>
+            {mainFile && (
+              <Stack direction="row" spacing={1}><Chip label={mainFile.name} /></Stack>
+            )}
+            <Button component="label" variant="outlined">Upload Gallery Images
+              <input hidden type="file" accept="image/*" multiple onChange={(e)=> setGalleryFiles(Array.from(e.target.files || []))} />
+            </Button>
+            {galleryFiles.length>0 && (
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                {galleryFiles.map((f, idx)=> <Chip key={idx} label={f.name} />)}
+              </Stack>
+            )}
+
+            <Box>
+              <Box component="h4" sx={{ fontSize: 16, fontWeight: 600, mb: 1 }}>Variants</Box>
+              <Stack spacing={1}>
+                {variants.map((v, i)=> (
+                  <Stack key={i} direction="row" spacing={1} alignItems="center">
+                    <TextField size="small" label="SKU" value={v.sku || ''} onChange={(e)=>updateVariant(i, { sku: e.target.value })} sx={{ width: 160 }}/>
+                    <TextField size="small" label="Price" type="number" value={v.price} onChange={(e)=>updateVariant(i, { price: Number(e.target.value) })} sx={{ width: 140 }}/>
+                    <TextField size="small" label="Stock" type="number" value={v.stock ?? 0} onChange={(e)=>updateVariant(i, { stock: Number(e.target.value) })} sx={{ width: 120 }}/>
+                    <TextField size="small" label="Image URL (optional)" value={variantImageUrls[i] || ''} onChange={(e)=> setVariantImageUrls({ ...variantImageUrls, [i]: e.target.value })} sx={{ width: 240 }}/>
+                    <Button size="small" color="error" onClick={()=>removeVariant(i)}>Remove</Button>
+                  </Stack>
+                ))}
+                <Button variant="outlined" size="small" onClick={addVariant}>Add Variant</Button>
+              </Stack>
+            </Box>
+
+            <Box>
+              <Box component="h4" sx={{ fontSize: 16, fontWeight: 600, mb: 1 }}>Discount (optional)</Box>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <FormControl>
+                  <InputLabel id="apply-coupon">Apply</InputLabel>
+                  <Select labelId="apply-coupon" label="Apply" value={applyCoupon ? 'yes' : 'no'} onChange={(e)=> setApplyCoupon((e.target.value as string) === 'yes')} sx={{ minWidth: 120 }}>
+                    <MenuItem value="no">No</MenuItem>
+                    <MenuItem value="yes">Yes</MenuItem>
+                  </Select>
+                </FormControl>
+                {applyCoupon && (
+                  <>
+                    <FormControl>
+                      <InputLabel id="coupon-type">Type</InputLabel>
+                      <Select labelId="coupon-type" label="Type" value={couponType} onChange={(e)=> setCouponType(e.target.value as any)} sx={{ minWidth: 140 }}>
+                        <MenuItem value="percent">Percent</MenuItem>
+                        <MenuItem value="fixed">Fixed Amount</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <TextField label={couponType==='percent' ? 'Percent (%)' : 'Amount'} type="number" value={couponValue} onChange={(e)=> setCouponValue(e.target.value === '' ? '' : Number(e.target.value))} sx={{ width: 180, bgcolor: 'white' }} />
+                  </>
+                )}
+              </Stack>
+            </Box>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setOpen(false)}>Cancel</Button>
+          <Button variant="contained" disabled={!canSave || saving} onClick={async()=>{
+            try {
+              const payload: any = {
+                shopId,
+                title: title.trim(),
+                sku: sku.trim() || undefined,
+                price,
+                mrp: mrp === '' ? undefined : mrp,
+                currency,
+                taxRate: taxRate === '' ? undefined : taxRate,
+                stock,
+                description: description.trim() || undefined,
+                status,
+                brandId: brandId || undefined,
+                categoryId: categoryId || undefined,
+                tagIds: tagIds.length ? tagIds : undefined,
+                // image URLs removed; files will be uploaded via FormData
+                variants: variants.filter(v=> (v.price ?? 0) > 0).map((v, i)=> ({ ...v, mainImage: (variantImageUrls[i] || '').trim() || undefined })),
+                discount: applyCoupon ? { type: couponType, value: couponValue === '' ? 0 : couponValue } : undefined,
+              };
+              let res: Response;
+              if (galleryFiles.length > 0 || mainFile) {
+                const fd = new FormData();
+                Object.entries(payload).forEach(([k, v])=>{
+                  if (v === undefined || v === null) return;
+                  if (Array.isArray(v) || typeof v === 'object') fd.append(k, JSON.stringify(v));
+                  else fd.append(k, String(v));
+                });
+                if (mainFile) fd.append('file', mainFile); // first file becomes mainImage on backend
+                for (const file of galleryFiles) fd.append('file', file);
+                res = await fetch(`${API_BASE}/products`, { method: 'POST', body: fd, credentials: 'include' });
+              } else {
+                res = await fetch(`${API_BASE}/products`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  credentials: 'include',
+                  body: JSON.stringify(payload)
+                });
+              }
+              if (res.ok) {
+                const data = await res.json();
+                onCreated(data.product);
+                setOpen(false);
+                setTitle(''); setSku(''); setPrice(0); setMrp(''); setCurrency('INR'); setTaxRate(''); setStock(0);
+                setDescription(''); setStatus('active'); setBrandId(''); setCategoryId(''); setTagIds([]); setImagesCsv(''); setVariants([]); setVariantImageUrls({}); setApplyCoupon(false); setCouponValue(''); setGalleryFiles([]); setMainFile(null);
+              }
+            } catch {}
+          }}>Create</Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }

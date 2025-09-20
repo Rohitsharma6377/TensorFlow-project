@@ -6,6 +6,9 @@ import cartReducer from './slice/cartSlice'
 import feedReducer from './slice/feedSlice'
 import wishlistReducer from './slice/wishlistSlice'
 import userReducer from './slice/userSlice'
+import brandReducer from './slice/brandSlice'
+import categoryReducer from './slice/categorySlice'
+import tagReducer from './slice/tagSlice'
 
 export const store = configureStore({
   reducer: {
@@ -15,6 +18,9 @@ export const store = configureStore({
     feed: feedReducer,
     wishlist: wishlistReducer,
     user: userReducer,
+    brands: brandReducer,
+    categories: categoryReducer,
+    tags: tagReducer,
   },
 })
 

@@ -23,6 +23,11 @@ const authRouter = require('./src/routes/auth');
 const shopsRouter = require('./src/routes/shops');
 const productsRouter = require('./src/routes/products');
 const postsRouter = require('./src/routes/posts');
+const brandsRouter = require('./src/routes/brands');
+const categoriesRouter = require('./src/routes/categories');
+const tagsRouter = require('./src/routes/tags');
+const taxesRouter = require('./src/routes/taxes');
+const couponsRouter = require('./src/routes/coupons');
 const storiesRouter = require('./src/routes/stories');
 const reelsRouter = require('./src/routes/reels');
 const socialRouter = require('./src/routes/social');
@@ -116,6 +121,11 @@ app.use('/api/v1/search', searchRouter);
 app.use('/api/v1/escrow', escrowRouter);
 app.use('/api/v1/ml', mlRouter);
 app.use('/api/v1', wishlistRouter);
+app.use('/api/v1/brands', brandsRouter);
+app.use('/api/v1/categories', categoriesRouter);
+app.use('/api/v1/tags', tagsRouter);
+app.use('/api/v1/taxes', taxesRouter);
+app.use('/api/v1/coupons', couponsRouter);
 
 // 404 handler
 app.use((req, res) => {

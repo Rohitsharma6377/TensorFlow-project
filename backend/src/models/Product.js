@@ -27,9 +27,23 @@ const ProductSchema = new mongoose.Schema(
     stock: { type: Number, default: 0 }, // total across variants
     images: [String], // default gallery
     mainImage: String,
+    // Backward-compatible text fields
     brand: String,
     category: String,
     tags: [String],
+    // New relational refs
+    brandId: { type: mongoose.Schema.Types.ObjectId, ref: 'Brand' },
+    categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+    tagIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Tag' }],
+    discount: {
+      type: {
+        type: String,
+        enum: ['percent', 'fixed'],
+      },
+      value: { type: Number, min: 0 },
+      expiry: { type: Date },
+      usageLimit: { type: Number, min: 0 },
+    },
     attributes: { type: Object }, // generic attributes/specs
     options: { type: Object }, // e.g., { color: ['Red','Blue'], size:['S','M'] }
     variants: [VariantSchema],
