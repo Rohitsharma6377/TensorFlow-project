@@ -1,20 +1,20 @@
 type ToastFn = (message: string) => void;
 
+function dispatchToast(type: 'success' | 'error' | 'info', message: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const ev = new CustomEvent('app:toast', { detail: { type, message } });
+    window.dispatchEvent(ev);
+  } catch {
+    // fallback to console
+    const prefix = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+    // eslint-disable-next-line no-console
+    console.log(prefix, message);
+  }
+}
+
 export const toast = {
-  success: ((msg: string) => {
-    if (typeof window !== 'undefined') {
-      // Replace with your preferred toast library implementation
-      console.log('✅', msg);
-    }
-  }) as ToastFn,
-  error: ((msg: string) => {
-    if (typeof window !== 'undefined') {
-      console.error('❌', msg);
-    }
-  }) as ToastFn,
-  info: ((msg: string) => {
-    if (typeof window !== 'undefined') {
-      console.info('ℹ️', msg);
-    }
-  }) as ToastFn,
+  success: ((msg: string) => dispatchToast('success', msg)) as ToastFn,
+  error: ((msg: string) => dispatchToast('error', msg)) as ToastFn,
+  info: ((msg: string) => dispatchToast('info', msg)) as ToastFn,
 };

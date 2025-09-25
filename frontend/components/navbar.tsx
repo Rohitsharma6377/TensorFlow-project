@@ -36,6 +36,7 @@ import { useAppDispatch, useAppSelector } from '@/store';
 import { logout as logoutAction } from '@/store/slice/authSlice';
 // import ChatPanel from '@/components/panels/ChatPanel';/
 import NotificationsPanel from '@/components/panels/NotificationsPanel';
+import SearchModal from '@/components/search/SearchModal';
 
 export function Navbar() {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -48,6 +49,8 @@ export function Navbar() {
   const router = useRouter();
   const [openChat, setOpenChat] = useState(false);
   const [openNotifs, setOpenNotifs] = useState(false);
+  const [openSearch, setOpenSearch] = useState(false);
+  const [searchQ, setSearchQ] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -111,6 +114,8 @@ export function Navbar() {
         {/* Slide-over panels */}
       {/* <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} /> */}
       {/* <ChatPanel open={openChat} onClose={() => setOpenChat(false)} /> */}
+      {/* Search Modal */}
+      <SearchModal open={openSearch} onClose={() => setOpenSearch(false)} query={searchQ} />
     </nav>
     );
   }
@@ -159,6 +164,9 @@ export function Navbar() {
             <input
               type="text"
               placeholder="Search"
+              value={searchQ}
+              onFocus={() => setOpenSearch(true)}
+              onChange={(e) => { setSearchQ(e.target.value); if (!openSearch) setOpenSearch(true); }}
               className="bg-transparent border-none outline-none w-full text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500"
             />
           </div>

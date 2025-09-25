@@ -197,15 +197,17 @@ export const AuthAPI = {
 
   // Login with email/username and password
   async login(usernameOrEmail: string, password: string): Promise<LoginResponse> {
+    // Send both usernameOrEmail and email to satisfy different backends
+    const payload = { usernameOrEmail, email: usernameOrEmail, password } as any;
     const raw = await api<any>('/api/v1/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ usernameOrEmail, password }),
+      body: JSON.stringify(payload),
       skipAuth: true,
     });
     const mapped: LoginResponse = {
-      accessToken: raw.token,
-      refreshToken: '',
-      user: raw.user,
+      accessToken: raw?.token || raw?.accessToken || raw?.data?.token || '',
+      refreshToken: raw?.refreshToken || raw?.data?.refreshToken || '',
+      user: raw?.user || raw?.data?.user || raw?.profile || raw,
     };
     return mapped;
   },
@@ -291,6 +293,32 @@ export const AuthAPI = {
   },
 };
 
+// Unified Search API
+export const SearchAPI = {
+  async products(params: { q?: string; limit?: number; page?: number; shopId?: string; category?: string; price_min?: number; price_max?: number; sort?: string } = {}) {
+    const qp = new URLSearchParams();
+    if (params.q) qp.set('q', params.q);
+    if (params.limit) qp.set('limit', String(params.limit));
+    if (params.page) qp.set('page', String(params.page));
+    if (params.shopId) qp.set('shopId', params.shopId);
+    if (params.category) qp.set('category', params.category);
+    if (params.price_min !== undefined) qp.set('price_min', String(params.price_min));
+    if (params.price_max !== undefined) qp.set('price_max', String(params.price_max));
+    if (params.sort) qp.set('sort', params.sort);
+    const q = qp.toString();
+    return api<{ success: boolean; products: ProductDTO[] }>(`/api/v1/search/products${q ? `?${q}` : ''}`, { method: 'GET', skipAuth: true });
+  },
+  async posts(params: { q?: string; limit?: number; page?: number; shopId?: string } = {}) {
+    const qp = new URLSearchParams();
+    if (params.q) qp.set('q', params.q);
+    if (params.limit) qp.set('limit', String(params.limit));
+    if (params.page) qp.set('page', String(params.page));
+    if (params.shopId) qp.set('shopId', params.shopId);
+    const q = qp.toString();
+    return api<{ success: boolean; posts: PostDTO[] }>(`/api/v1/search/posts${q ? `?${q}` : ''}`, { method: 'GET', skipAuth: true });
+  },
+};
+
 export type VariantDTO = {
   sku?: string;
   attributes?: Record<string, any>;
@@ -346,6 +374,109 @@ export const ProductAPI = {
       body: JSON.stringify(payload),
     });
   },
+  // Create with files using multipart/form-data. Matches backend products route using multer and attachUploads.
+  async createMultipart(payload: ProductDTO & {
+    mainFile?: File | null;
+    galleryFiles?: File[];
+    variantFiles?: (File[] | undefined)[]; // array index corresponds to variants index
+    discount?: { type: 'percent' | 'fixed'; value: number; expiry?: string; usageLimit?: number };
+  }) {
+    const fd = new FormData();
+    // Optional folder hint for backend uploads
+    fd.append('folder', 'products');
+    if (payload.shopId) fd.append('shopId', payload.shopId);
+    if (payload.title) fd.append('title', payload.title);
+    if (payload.sku) fd.append('sku', payload.sku);
+    if (payload.description) fd.append('description', payload.description);
+    if (payload.price !== undefined) fd.append('price', String(payload.price));
+    if (payload.mrp !== undefined) fd.append('mrp', String(payload.mrp));
+    if (payload.taxRate !== undefined) fd.append('taxRate', String(payload.taxRate));
+    if (payload.stock !== undefined) fd.append('stock', String(payload.stock));
+    if (payload.currency) fd.append('currency', payload.currency);
+    if (payload.brand) fd.append('brand', payload.brand);
+    if (payload.category) fd.append('category', payload.category);
+    if (payload.tags && payload.tags.length) payload.tags.forEach(t => fd.append('tags', t));
+    if (payload.brandId) fd.append('brandId', payload.brandId);
+    if (payload.categoryId) fd.append('categoryId', payload.categoryId);
+    if (payload.tagIds && payload.tagIds.length) fd.append('tagIds', JSON.stringify(payload.tagIds));
+    if (payload.attributes) fd.append('attributes', JSON.stringify(payload.attributes));
+    if (payload.options) fd.append('options', JSON.stringify(payload.options));
+    if (payload.status) fd.append('status', payload.status);
+    if (payload.discount) fd.append('discount', JSON.stringify(payload.discount));
+
+    // Files: main and gallery, using field name 'file' for consistency with upload middleware
+    if (payload.mainFile) fd.append('file', payload.mainFile);
+    if (payload.galleryFiles && payload.galleryFiles.length) {
+      payload.galleryFiles.forEach((f) => fd.append('file', f));
+    }
+
+    // Variants and their files
+    if (payload.variants) {
+      fd.append('variants', JSON.stringify(payload.variants));
+      if (payload.variantFiles && payload.variantFiles.length) {
+        payload.variantFiles.forEach((files, idx) => {
+          if (files && files.length) {
+            files.forEach((f) => fd.append(`variantFiles[${idx}]`, f));
+          }
+        });
+      }
+    }
+
+    return api<{ success: boolean; product: ProductDTO }>(`/api/v1/products`, {
+      method: 'POST',
+      body: fd as any,
+    });
+  },
+  // Update with files using multipart/form-data. Sends only provided fields.
+  async updateMultipart(id: string, payload: Partial<ProductDTO> & {
+    mainFile?: File | null;
+    galleryFiles?: File[];
+    variantFiles?: (File[] | undefined)[];
+    discount?: { type: 'percent' | 'fixed'; value: number; expiry?: string; usageLimit?: number };
+  }) {
+    const fd = new FormData();
+    // Optional folder hint
+    fd.append('folder', 'products');
+    if (payload.title) fd.append('title', payload.title);
+    if (payload.sku) fd.append('sku', payload.sku);
+    if (payload.description !== undefined) fd.append('description', payload.description || '');
+    if (payload.price !== undefined) fd.append('price', String(payload.price));
+    if (payload.mrp !== undefined) fd.append('mrp', String(payload.mrp));
+    if (payload.taxRate !== undefined) fd.append('taxRate', String(payload.taxRate));
+    if (payload.stock !== undefined) fd.append('stock', String(payload.stock));
+    if (payload.currency) fd.append('currency', payload.currency);
+    if (payload.brand) fd.append('brand', payload.brand);
+    if (payload.category) fd.append('category', payload.category);
+    if (payload.tags && payload.tags.length) payload.tags.forEach(t => fd.append('tags', t));
+    if (payload.brandId) fd.append('brandId', payload.brandId);
+    if (payload.categoryId) fd.append('categoryId', payload.categoryId);
+    if (payload.tagIds && payload.tagIds.length) fd.append('tagIds', JSON.stringify(payload.tagIds));
+    if (payload.attributes) fd.append('attributes', JSON.stringify(payload.attributes));
+    if (payload.options) fd.append('options', JSON.stringify(payload.options));
+    if (payload.status) fd.append('status', payload.status);
+    if (payload.discount) fd.append('discount', JSON.stringify(payload.discount));
+
+    // Files
+    if (payload.mainFile) fd.append('file', payload.mainFile);
+    if (payload.galleryFiles && payload.galleryFiles.length) {
+      payload.galleryFiles.forEach((f) => fd.append('file', f));
+    }
+    if (payload.variants) {
+      fd.append('variants', JSON.stringify(payload.variants));
+    }
+    if (payload.variantFiles && payload.variantFiles.length) {
+      payload.variantFiles.forEach((files, idx) => {
+        if (files && files.length) {
+          files.forEach((f) => fd.append(`variantFiles[${idx}]`, f));
+        }
+      });
+    }
+
+    return api<{ success: boolean; product: ProductDTO }>(`/api/v1/products/${id}`, {
+      method: 'PUT',
+      body: fd as any,
+    });
+  },
   async update(id: string, payload: Partial<ProductDTO>) {
     return api<{ success: boolean; product: ProductDTO }>(`/api/v1/products/${id}`, {
       method: 'PUT',
@@ -360,12 +491,14 @@ export const ProductAPI = {
 // Feed posts DTO and API
 export interface PostDTO {
   _id: string;
-  shop: string;
-  product?: string;
+  shop: string | { _id: string; name: string; slug: string; logo?: { url?: string } | string; isVerified?: boolean; isFollowing?: boolean };
+  product?: string | { _id: string; title?: string; mainImage?: string; images?: string[]; price?: number };
   caption?: string;
   media?: string[];
   likesCount?: number;
   commentsCount?: number;
+  isLiked?: boolean;
+  createdAt?: string;
 }
 
 export const FeedAPI = {
@@ -378,6 +511,83 @@ export const FeedAPI = {
 export const WishlistAPI = {
   async add(productId: string) {
     return api<{ success: boolean }>(`/api/v1/products/${productId}/wishlist`, { method: 'POST' });
+  },
+};
+
+export const PostsAPI = {
+  async list() {
+    return api<{ success: boolean; posts: PostDTO[] }>(`/api/v1/posts`, { method: 'GET' });
+  },
+  async like(id: string) {
+    return api<{ success: boolean }>(`/api/v1/posts/${id}/like`, { method: 'POST' });
+  },
+  async comment(id: string, text: string, parent?: string) {
+    return api<{ success: boolean; comment: { _id: string; text: string } }>(
+      `/api/v1/posts/${id}/comment`,
+      { method: 'POST', body: JSON.stringify({ text, parent }) }
+    );
+  },
+  async createMultipart(payload: {
+    shop: string;
+    product?: string;
+    caption?: string;
+    hashtags?: string[];
+    type?: 'product' | 'lifestyle';
+    mediaFiles?: File[]; // images/videos
+    audioFile?: File | null; // optional audio file
+  }) {
+    const fd = new FormData();
+    fd.append('shop', payload.shop);
+    if (payload.product) fd.append('product', payload.product);
+    if (payload.caption) fd.append('caption', payload.caption);
+    if (payload.type) fd.append('type', payload.type);
+    if (payload.hashtags && payload.hashtags.length) fd.append('hashtags', JSON.stringify(payload.hashtags));
+    // Optional folder for organization
+    fd.append('folder', 'posts');
+    if (payload.mediaFiles && payload.mediaFiles.length) {
+      payload.mediaFiles.forEach((f) => fd.append('file', f));
+    }
+    if (payload.audioFile) {
+      fd.append('audio', payload.audioFile);
+    }
+    return api<{ success: boolean; post: PostDTO }>(`/api/v1/posts`, {
+      method: 'POST',
+      body: fd as any,
+    });
+  },
+  async updateMultipart(id: string, payload: {
+    shop?: string;
+    product?: string;
+    caption?: string;
+    hashtags?: string[];
+    type?: 'product' | 'lifestyle';
+    status?: 'draft' | 'active' | 'archived';
+    mediaFiles?: File[]; // to append
+    audioFile?: File | null; // replace audio
+    mediaReset?: boolean; // if true, replace media with provided
+    media?: string[]; // existing URLs to keep/replace with
+  }) {
+    const fd = new FormData();
+    if (payload.shop) fd.append('shop', payload.shop);
+    if (payload.product) fd.append('product', payload.product);
+    if (payload.caption !== undefined) fd.append('caption', payload.caption);
+    if (payload.type) fd.append('type', payload.type);
+    if (payload.status) fd.append('status', payload.status);
+    if (payload.hashtags && payload.hashtags.length) fd.append('hashtags', JSON.stringify(payload.hashtags));
+    if (payload.mediaReset) fd.append('mediaReset', 'true');
+    if (payload.media && payload.media.length) payload.media.forEach((m) => fd.append('media', m));
+    if (payload.mediaFiles && payload.mediaFiles.length) payload.mediaFiles.forEach((f) => fd.append('file', f));
+    if (payload.audioFile) fd.append('audio', payload.audioFile);
+    return api<{ success: boolean; post: PostDTO }>(`/api/v1/posts/${id}`, { method: 'PUT', body: fd as any });
+  },
+  async setStatus(id: string, status: 'draft' | 'active' | 'archived') {
+    return api<{ success: boolean; post: PostDTO }>(`/api/v1/posts/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+  },
+  async remove(id: string) {
+    return api<{ success: boolean }>(`/api/v1/posts/${id}`, { method: 'DELETE' });
   },
 };
 
@@ -476,6 +686,81 @@ export const TagsAPI = {
   },
 };
 
+// Taxes API
+export interface TaxDTO {
+  _id?: string;
+  shop: string;
+  name: string;
+  percent: number;
+  active?: boolean;
+}
+
+export const TaxesAPI = {
+  async list(shop?: string) {
+    const q = shop ? `?shop=${shop}` : '';
+    return api<{ success: boolean; taxes: TaxDTO[] }>(`/api/v1/taxes${q}`, { method: 'GET' });
+  },
+  async get(id: string) {
+    return api<{ success: boolean; tax: TaxDTO }>(`/api/v1/taxes/${id}`, { method: 'GET' });
+  },
+  async create(payload: Omit<TaxDTO, '_id'>) {
+    return api<{ success: boolean; tax: TaxDTO }>(`/api/v1/taxes`, { method: 'POST', body: JSON.stringify(payload) });
+  },
+  async update(id: string, payload: Partial<Omit<TaxDTO, '_id' | 'shop'>>) {
+    return api<{ success: boolean; tax: TaxDTO }>(`/api/v1/taxes/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+  },
+  async remove(id: string) {
+    return api<{ success: boolean }>(`/api/v1/taxes/${id}`, { method: 'DELETE' });
+  },
+};
+
+// Coupons API
+export interface CouponDTO {
+  _id?: string;
+  shop: string;
+  code: string;
+  type: 'percent' | 'fixed';
+  value: number;
+  expiry?: string;
+  usageLimit?: number;
+  active?: boolean;
+}
+
+export const CouponsAPI = {
+  async list(shop?: string) {
+    const q = shop ? `?shop=${shop}` : '';
+    return api<{ success: boolean; coupons: CouponDTO[] }>(`/api/v1/coupons${q}`, { method: 'GET' });
+  },
+  async get(id: string) {
+    return api<{ success: boolean; coupon: CouponDTO }>(`/api/v1/coupons/${id}`, { method: 'GET' });
+  },
+  async create(payload: Omit<CouponDTO, '_id'>) {
+    return api<{ success: boolean; coupon: CouponDTO }>(`/api/v1/coupons`, { method: 'POST', body: JSON.stringify(payload) });
+  },
+  async update(id: string, payload: Partial<Omit<CouponDTO, '_id' | 'shop'>>) {
+    return api<{ success: boolean; coupon: CouponDTO }>(`/api/v1/coupons/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+  },
+  async remove(id: string) {
+    return api<{ success: boolean }>(`/api/v1/coupons/${id}`, { method: 'DELETE' });
+  },
+};
+
+// Orders analytics API
+export const OrdersAnalyticsAPI = {
+  async stats(shop: string, sinceHours: number = 720) {
+    return api<{ success: boolean; stats: { totalOrders: number; totalItems: number; revenue: number; delivered: number } }>(
+      `/api/v1/orders/seller/stats?shop=${encodeURIComponent(shop)}&sinceHours=${sinceHours}`,
+      { method: 'GET' }
+    );
+  },
+  async series(shop: string, windowHours: number = 24, intervalMinutes: number = 60) {
+    return api<{ success: boolean; points: Array<{ t: string; orders: number; revenue: number }> }>(
+      `/api/v1/orders/seller/series?shop=${encodeURIComponent(shop)}&windowHours=${windowHours}&intervalMinutes=${intervalMinutes}`,
+      { method: 'GET' }
+    );
+  },
+};
+
 // Users API (profile and addresses)
 export interface AddressDTO {
   id?: string;
@@ -494,13 +779,23 @@ export interface UpdateUserPayload {
   profile?: {
     fullName?: string;
     bio?: string;
+    phone?: string;
+    address?: {
+      line1?: string;
+      line2?: string;
+      city?: string;
+      state?: string;
+      pincode?: string;
+      country?: string;
+    };
   };
   walletBalance?: number;
 }
 
 export const UsersAPI = {
   async updateProfile(userId: string, payload: UpdateUserPayload) {
-    return api<{ success: boolean; user: User }>(`/api/v1/users/${userId}`, {
+    const path = userId === 'me' ? '/api/v1/users/me' : `/api/v1/users/${userId}`;
+    return api<{ success: boolean; user: User }>(path, {
       method: 'PUT',
       body: JSON.stringify(payload),
     });
@@ -521,5 +816,38 @@ export const UsersAPI = {
     return api<{ success: boolean; user: User }>(`/api/v1/users/${userId}/address/${addressId}`, {
       method: 'DELETE',
     });
+  },
+};
+
+// Social API (follow/unfollow shops)
+export const SocialAPI = {
+  async follow(shopId: string) {
+    return api<{ success: boolean }>(`/api/v1/social/follow/${shopId}`, { method: 'POST' });
+  },
+  async unfollow(shopId: string) {
+    return api<{ success: boolean }>(`/api/v1/social/follow/${shopId}`, { method: 'DELETE' });
+  },
+  async following() {
+    return api<{ success: boolean; shops: string[] }>(`/api/v1/social/following`, { method: 'GET' });
+  },
+};
+
+// Shops API (public list)
+export interface ShopListItemDTO {
+  _id: string;
+  name: string;
+  slug: string;
+  logo?: { url?: string } | string;
+  isVerified?: boolean;
+}
+
+export const ShopsAPI = {
+  async list(params: { featured?: boolean; limit?: number } = {}) {
+    const qp = new URLSearchParams();
+    if (params.featured) qp.set('featured', 'true');
+    if (params.limit) qp.set('limit', String(params.limit));
+    const q = qp.toString();
+    const path = `/api/v1/shops${q ? `?${q}` : ''}`;
+    return api<{ success: boolean; shops: ShopListItemDTO[] }>(path, { method: 'GET', skipAuth: true });
   },
 };

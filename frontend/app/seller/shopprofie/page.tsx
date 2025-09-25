@@ -1,25 +1,53 @@
-"use client";
+"use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import type React from "react";
-import { useState, useMemo, useEffect } from "react";
+import type React from "react"
+import { useState, useEffect } from "react"
+import { useAppDispatch, useAppSelector, type RootState } from "@/store"
+import { fetchMyShop, createShop, updateShop } from "@/store/slice/shopSlice"
+import { api } from "@/lib/api"
+import {
+  Box,
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  Grid,
+  Card,
+  CardContent,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Chip,
+  Stack,
+  Alert,
+  Switch,
+  FormControlLabel,
+  Container,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  InputAdornment,
+} from "@mui/material"
+import {
+  Store,
+  Email,
+  Phone,
+  Language,
+  Facebook,
+  Instagram,
+  Twitter,
+  YouTube,
+  LocationOn,
+  Payment,
+  CloudUpload,
+  ExpandMore,
+  QrCode,
+  AccountBalance,
+  LocalShipping,
+} from "@mui/icons-material"
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api/v1";
-
-// Using hosted demo assets so previews work immediately.
-// Replace with local /icons/3d/*.glb files later if you add them under frontend/public/
-const ICON_PRESETS: { id: string; label: string; url: string }[] = [
-  { id: "bag", label: "Shopping Bag", url: "https://modelviewer.dev/shared-assets/models/Astronaut.glb" },
-  { id: "shirt", label: "Clothes", url: "https://modelviewer.dev/shared-assets/models/RobotExpressive.glb" },
-  { id: "bolt", label: "Electronics", url: "https://modelviewer.dev/shared-assets/models/MaterialsHelmet.glb" },
-  { id: "sofa", label: "Furniture", url: "https://modelviewer.dev/shared-assets/models/Chair.glb" },
-  { id: "food", label: "Food", url: "https://modelviewer.dev/shared-assets/models/ShopifyModels/Chair/glb/Chair.glb" },
-];
-
-const SHOP_TYPES = [
+const SHOP_CATEGORIES = [
   "electronics",
   "clothing",
   "home",
@@ -30,530 +58,1297 @@ const SHOP_TYPES = [
   "toys",
   "automotive",
   "other",
-];
+]
 
-export default function SellerShopProfilePage() {
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+export default function EnhancedShopProfile() {
+  const dispatch = useAppDispatch()
+  const { shop, loading: shopLoading, error: shopError } = useAppSelector((s: RootState) => s.shop)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [shopId, setShopId] = useState<string | null>(null)
 
-  const [shopId, setShopId] = useState<string | null>(null);
+  // Basic shop info
+  const [shopName, setShopName] = useState("")
+  const [description, setDescription] = useState("")
+  const [themeColor, setThemeColor] = useState("#000000")
+  const [categories, setCategories] = useState<string[]>([])
+  const [tags, setTags] = useState("")
 
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [themeColor, setThemeColor] = useState("#10b981"); // emerald
-  const [categories, setCategories] = useState<string[]>([]);
-  const [tags, setTags] = useState<string>("");
+  // Contact info
+  const [contactEmail, setContactEmail] = useState("")
+  const [contactPhone, setContactPhone] = useState("")
+  const [website, setWebsite] = useState("")
+  const [social, setSocial] = useState({
+    facebook: "",
+    instagram: "",
+    twitter: "",
+    youtube: "",
+  })
 
-  const [contactEmail, setContactEmail] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
-  const [website, setWebsite] = useState("");
-  const [social, setSocial] = useState({ facebook: "", instagram: "", twitter: "", youtube: "" });
+  // Address
+  const [address, setAddress] = useState({
+    street: "",
+    city: "",
+    state: "",
+    country: "India",
+    pincode: "",
+  })
 
-  const [address, setAddress] = useState({ street: "", city: "", state: "", country: "India", pincode: "" });
-  const [lat, setLat] = useState<number | "">("");
-  const [lng, setLng] = useState<number | "">("");
-  const [googleMapsUrl, setGoogleMapsUrl] = useState<string>("");
+  // Business details
+  const [businessType, setBusinessType] = useState("")
+  const [gstNumber, setGstNumber] = useState("")
+  const [panNumber, setPanNumber] = useState("")
+  const [businessHours, setBusinessHours] = useState({
+    open: "09:00",
+    close: "18:00",
+    closedDays: [] as string[],
+  })
 
-  const [icon3d, setIcon3d] = useState<string>(ICON_PRESETS[0].url);
+  // Payment methods
+  const [paymentMethods, setPaymentMethods] = useState({
+    razorpay: { enabled: false, keyId: "", keySecret: "" },
+    stripe: { enabled: false, publishableKey: "", secretKey: "" },
+    payu: { enabled: false, merchantKey: "", merchantSalt: "" },
+    phonepe: { enabled: false, merchantId: "", saltKey: "", saltIndex: "" },
+    upi: { id: "", qrCode: null as File | null },
+    cod: { enabled: true, minOrder: 0 },
+  })
 
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [bannerFile, setBannerFile] = useState<File | null>(null);
-  const [existingLogoUrl, setExistingLogoUrl] = useState<string | null>(null);
-  const [existingBannerUrl, setExistingBannerUrl] = useState<string | null>(null);
-  const logoPreview = useMemo(() => (logoFile ? URL.createObjectURL(logoFile) : existingLogoUrl), [logoFile, existingLogoUrl]);
-  const bannerPreview = useMemo(() => (bannerFile ? URL.createObjectURL(bannerFile) : existingBannerUrl), [bannerFile, existingBannerUrl]);
+  // Delivery partners
+  const [deliveryPartners, setDeliveryPartners] = useState({
+    shiprocket: { enabled: false, email: "", password: "", apiKey: "" },
+    delhivery: { enabled: false, token: "" },
+    bluedart: { enabled: false, licenseKey: "", loginId: "" },
+    fedex: { enabled: false, clientId: "", clientSecret: "", accountNumber: "" },
+  })
 
-  // Prefill if user has a shop (edit mode)
+  // Files
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [bannerFile, setBannerFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null)
+  const [upiQrPreview, setUpiQrPreview] = useState<string | null>(null)
+
+  // Generate and cleanup preview URLs when files change
   useEffect(() => {
-    async function loadMyShop() {
-      try {
-        const res = await fetch(`${API_BASE}/shops/my`, { credentials: "include" });
-        if (!res.ok) return; // No shop yet
-        const data = await res.json();
-        const s = data.shop;
-        if (!s) return;
-        setShopId(s._id);
-        setName(s.name || "");
-        setDescription(s.description || "");
-        setThemeColor((s.metadata && s.metadata.themeColor) || "#10b981");
-        setCategories(Array.isArray(s.categories) ? s.categories : []);
-        setTags(Array.isArray(s.tags) ? s.tags.join(", ") : "");
-        setContactEmail(s.contact?.email || "");
-        setContactPhone(s.contact?.phone || "");
-        setWebsite(s.contact?.website || "");
-        setSocial({
-          facebook: s.contact?.social?.facebook || "",
-          instagram: s.contact?.social?.instagram || "",
-          twitter: s.contact?.social?.twitter || "",
-          youtube: s.contact?.social?.youtube || "",
-        });
-        setAddress({
-          street: s.address?.street || "",
-          city: s.address?.city || "",
-          state: s.address?.state || "",
-          country: s.address?.country || "India",
-          pincode: s.address?.pincode || "",
-        });
-        const coords = s.address?.location?.coordinates;
-        if (Array.isArray(coords) && coords.length === 2) {
-          setLng(typeof coords[0] === 'number' ? coords[0] : "");
-          setLat(typeof coords[1] === 'number' ? coords[1] : "");
-        }
-        setIcon3d((s.metadata && s.metadata.icon3d) || ICON_PRESETS[0].url);
-        setExistingLogoUrl(s.logo?.url || null);
-        setExistingBannerUrl(s.banner?.url || null);
-        if (s.metadata?.mapsUrl) {
-          setGoogleMapsUrl(s.metadata.mapsUrl as string);
-        } else if (Array.isArray(s.address?.location?.coordinates) && s.address.location.coordinates.length === 2) {
-          const lt = s.address.location.coordinates[1];
-          const lg = s.address.location.coordinates[0];
-          if (typeof lt === 'number' && typeof lg === 'number') {
-            setGoogleMapsUrl(`https://www.google.com/maps?q=${lt},${lg}`);
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
+    if (logoFile) {
+      const url = URL.createObjectURL(logoFile)
+      setLogoPreview(url)
+      return () => URL.revokeObjectURL(url)
+    } else {
+      setLogoPreview(null)
     }
-    loadMyShop();
-  }, []);
+  }, [logoFile])
 
-  // Parse lat/lng from a Google Maps URL if possible
   useEffect(() => {
-    if (!googleMapsUrl) return;
-    let newLat: number | '' = '';
-    let newLng: number | '' = '';
+    if (bannerFile) {
+      const url = URL.createObjectURL(bannerFile)
+      setBannerPreview(url)
+      return () => URL.revokeObjectURL(url)
+    } else {
+      setBannerPreview(null)
+    }
+  }, [bannerFile])
+
+  useEffect(() => {
+    if (paymentMethods.upi.qrCode) {
+      const url = URL.createObjectURL(paymentMethods.upi.qrCode)
+      setUpiQrPreview(url)
+      return () => URL.revokeObjectURL(url)
+    } else {
+      setUpiQrPreview(null)
+    }
+  }, [paymentMethods.upi.qrCode])
+
+  // Load my shop and prefill when available
+  useEffect(() => {
+    dispatch(fetchMyShop() as any)
+  }, [dispatch])
+
+  useEffect(() => {
+    if (!shop) return
     try {
-      // Patterns: https://maps.google.com/...@lat,lng, or ...?q=lat,lng
-      const atMatch = googleMapsUrl.match(/@(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/);
-      const qMatch = googleMapsUrl.match(/[?&]q=(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/);
-      const coords = atMatch || qMatch;
-      if (coords && coords.length >= 3) {
-        const lt = parseFloat(coords[1]);
-        const lg = parseFloat(coords[2]);
-        if (!Number.isNaN(lt) && !Number.isNaN(lg)) {
-          newLat = Number(lt.toFixed(6));
-          newLng = Number(lg.toFixed(6));
-        }
+      setShopId(shop._id || shop.id || null)
+      setShopName(shop.name || '')
+      setDescription(shop.description || '')
+      setThemeColor(shop.metadata?.themeColor || themeColor)
+      setCategories(Array.isArray(shop.categories) ? shop.categories : [])
+      setTags(Array.isArray(shop.tags) ? shop.tags.join(', ') : '')
+      setContactEmail(shop.contact?.email || '')
+      setContactPhone(shop.contact?.phone || '')
+      setWebsite(shop.contact?.website || '')
+      setSocial({
+        facebook: shop.contact?.social?.facebook || '',
+        instagram: shop.contact?.social?.instagram || '',
+        twitter: shop.contact?.social?.twitter || '',
+        youtube: shop.contact?.social?.youtube || '',
+      })
+      if (shop.address) {
+        setAddress({
+          street: shop.address.street || '',
+          city: shop.address.city || '',
+          state: shop.address.state || '',
+          country: shop.address.country || 'India',
+          pincode: shop.address.pincode || '',
+        })
+      }
+      if (Array.isArray(shop.businessHours) && shop.businessHours.length) {
+        const anyOpen = shop.businessHours.find((h: any) => h?.openTime && h?.closeTime)
+        if (anyOpen) setBusinessHours({ open: anyOpen.openTime, close: anyOpen.closeTime, closedDays: [] })
+      }
+      if (shop.metadata?.payments) {
+        setPaymentMethods((prev) => ({
+          ...prev,
+          razorpay: {
+            enabled: !!shop.metadata.payments.razorpay?.enabled,
+            keyId: shop.metadata.payments.razorpay?.keyId || '',
+            keySecret: shop.metadata.payments.razorpay?.keySecret || '',
+          },
+          stripe: {
+            enabled: !!shop.metadata.payments.stripe?.enabled,
+            publishableKey: shop.metadata.payments.stripe?.publishableKey || '',
+            secretKey: shop.metadata.payments.stripe?.secretKey || '',
+          },
+          payu: {
+            enabled: !!shop.metadata.payments.payu?.enabled,
+            merchantKey: shop.metadata.payments.payu?.merchantKey || '',
+            merchantSalt: shop.metadata.payments.payu?.merchantSalt || '',
+          },
+          phonepe: {
+            enabled: !!shop.metadata.payments.phonepe?.enabled,
+            merchantId: shop.metadata.payments.phonepe?.merchantId || '',
+            saltKey: shop.metadata.payments.phonepe?.saltKey || '',
+            saltIndex: shop.metadata.payments.phonepe?.saltIndex || '',
+          },
+          upi: {
+            id: shop.metadata.payments.upi?.id || '',
+            qrCode: null,
+          },
+          cod: shop.metadata.payments.cod || { enabled: true, minOrder: 0 },
+        }))
+      }
+      if (shop.metadata?.deliveryPartners) {
+        const dp = shop.metadata.deliveryPartners
+        setDeliveryPartners((prev) => ({
+          ...prev,
+          shiprocket: { enabled: !!dp.shiprocket?.enabled, email: dp.shiprocket?.email || '', password: '', apiKey: dp.shiprocket?.apiKey || '' },
+          delhivery: { enabled: !!dp.delhivery?.enabled, token: dp.delhivery?.token || '' },
+          bluedart: { enabled: !!dp.bluedart?.enabled, licenseKey: dp.bluedart?.licenseKey || '', loginId: dp.bluedart?.loginId || '' },
+          fedex: { enabled: !!dp.fedex?.enabled, clientId: dp.fedex?.clientId || '', clientSecret: '', accountNumber: dp.fedex?.accountNumber || '' },
+        }))
       }
     } catch {}
-    setLat(newLat);
-    setLng(newLng);
-  }, [googleMapsUrl]);
+  }, [shop])
 
-  async function uploadAsset(file: File, folder = "shops") {
-    const form = new FormData();
-    form.append("file", file);
-    form.append("folder", folder);
-    const res = await fetch(`${API_BASE}/uploads`, {
-      method: "POST",
-      body: form,
-      credentials: "include",
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.message || "Upload failed");
-    }
-    const data = await res.json();
-    // Map to { url, publicId }
-    return { url: data.url, publicId: data.key } as { url: string; publicId: string };
-  }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    setSuccess(null);
     try {
-      if (!name.trim()) throw new Error("Please enter a shop name");
+      if (!shopName.trim()) throw new Error('Please enter a shop name')
+      if (!contactEmail.trim()) throw new Error('Please enter a contact email')
+      if (!contactPhone.trim()) throw new Error('Please enter a contact phone')
 
-      // Upload assets first if provided
-      let logo: { url: string; publicId: string } | undefined;
-      let banner: { url: string; publicId: string } | undefined;
-      if (logoFile) logo = await uploadAsset(logoFile, "shops/logos");
-      if (bannerFile) banner = await uploadAsset(bannerFile, "shops/banners");
+      // Only include address if it's complete enough to pass backend validators
+      const addressComplete = address.street && address.city && address.state && address.pincode && address.country
+      const addressPayload = addressComplete
+        ? { ...address }
+        : undefined
+
+      // Map tags string to array
+      const tagsArr = (tags || "")
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+
+      // Map simple business hours to 7-day schedule
+      const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const
+      const bh = days.map((d) => ({ day: d, isOpen: true, openTime: businessHours.open, closeTime: businessHours.close }))
+
+      // Build metadata with payments and delivery partners
+      const metadata: any = {
+        themeColor,
+        payments: {
+          razorpay: paymentMethods.razorpay,
+          stripe: paymentMethods.stripe,
+          payu: paymentMethods.payu,
+          phonepe: paymentMethods.phonepe,
+          upi: { id: paymentMethods.upi.id },
+          cod: paymentMethods.cod,
+        },
+        deliveryPartners,
+      }
+
+      // Upload helper
+      const uploadSingle = async (file: File, folder: string) => {
+        const fd = new FormData()
+        fd.append('file', file)
+        fd.append('folder', folder)
+        const res = await api<any>('/api/v1/uploads', { method: 'POST', body: fd as any })
+        return res?.url || res?.secure_url || res?.location || res?.path
+      }
+
+      // Upload files if selected
+      const logoUrl = logoFile ? await uploadSingle(logoFile, 'shops') : undefined
+      const bannerUrl = bannerFile ? await uploadSingle(bannerFile, 'shops') : undefined
+      const upiQrUrl = paymentMethods.upi.qrCode ? await uploadSingle(paymentMethods.upi.qrCode, 'payments') : undefined
 
       const payload: any = {
-        name,
+        name: shopName,
         description,
-        themeColor,
-        categories,
-        tags: tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean),
         contactEmail: contactEmail || undefined,
         contactPhone: contactPhone || undefined,
         website: website || undefined,
         contact: { social },
-        address: {
-          ...address,
-          ...(typeof lat === 'number' && typeof lng === 'number'
-            ? { location: { type: 'Point', coordinates: [Number(lng), Number(lat)] } }
-            : {}),
-        },
-        icon3d,
-        metadata: {
-          mapsUrl: googleMapsUrl || undefined,
-        },
-        ...(logo ? { logo } : {}),
-        ...(banner ? { banner } : {}),
-      };
+        address: addressPayload,
+        categories,
+        tags: tagsArr,
+        businessHours: bh,
+        metadata,
+        ...(logoUrl ? { logo: logoUrl } : {}),
+        ...(bannerUrl ? { banner: bannerUrl } : {}),
+      }
 
-      const url = shopId ? `${API_BASE}/shops/${shopId}` : `${API_BASE}/shops`;
-      const method = shopId ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) throw new Error("Failed to save shop");
-      setSuccess(shopId ? "Shop updated" : "Shop created (pending approval)");
-      // refresh from DB so previews and IDs are in sync
-      try {
-        const myRes = await fetch(`${API_BASE}/shops/my`, { credentials: "include" });
-        if (myRes.ok) {
-          const data = await myRes.json();
-          const s = data.shop;
-          setShopId(s?._id || null);
-          setExistingLogoUrl(s?.logo?.url || null);
-          setExistingBannerUrl(s?.banner?.url || null);
-          setIcon3d((s?.metadata && s.metadata.icon3d) || icon3d);
-          const coords = s?.address?.location?.coordinates;
-          if (Array.isArray(coords) && coords.length === 2) {
-            setGoogleMapsUrl(`https://www.google.com/maps?q=${coords[1]},${coords[0]}`);
-          }
-          if (s?.metadata?.mapsUrl) {
-            setGoogleMapsUrl(s.metadata.mapsUrl as string);
+      if (upiQrUrl) {
+        payload.metadata = {
+          ...payload.metadata,
+          payments: {
+            ...payload.metadata?.payments,
+            upi: {
+              id: paymentMethods.upi.id,
+              qr: upiQrUrl,
+            }
           }
         }
-      } catch {}
+      }
+
+      if (!shopId) {
+        const res = await dispatch(createShop(payload) as any)
+        if (res.error) throw new Error(res.payload || 'Failed to create shop')
+        setSuccess('Shop created')
+        setShopId(res.payload?._id || res.payload?.id || null)
+      } else {
+        const res = await dispatch(updateShop({ id: shopId, payload }) as any)
+        if (res.error) throw new Error(res.payload || 'Failed to update shop')
+        setSuccess('Shop updated')
+      }
     } catch (err: any) {
-      setError(err.message || "Something went wrong");
+      setError(err?.message || 'Failed to save shop')
     } finally {
-      setSubmitting(false);
+      setLoading(false)
     }
   }
 
-  const isValid = useMemo(() => {
-    if (!name.trim()) return false;
-    if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) return false;
-    if (contactPhone && contactPhone.replace(/\D/g, '').length < 8) return false;
-    return true;
-  }, [name, contactEmail, contactPhone]);
+  const toggleCategory = (category: string) => {
+    setCategories((prev) => (prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]))
+  }
 
   return (
-    <div className="space-y-8 px-4 py-6 md:py-10 mx-auto">
-      <Card className="bg-white/90 dark:bg-slate-900/80 backdrop-blur border border-emerald-200/60 shadow-lg rounded-2xl">
-        <CardHeader className="sticky top-16 z-10 bg-white/90 dark:bg-slate-900/80 backdrop-blur rounded-t-2xl border-b border-emerald-200/50">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle className="text-emerald-900 dark:text-emerald-300">Shop Profile</CardTitle>
-              <CardDescription className="text-slate-600 dark:text-slate-400">Manage your shop details</CardDescription>
-            </div>
-            <div className="flex items-center gap-4">
-              {/* Mini 3D preview */}
-              <div className="hidden md:block rounded-md border border-emerald-200/60 overflow-hidden" style={{ width: 56, height: 56, background: '#f8fafc' }}>
-                {/* @ts-ignore model-viewer is a web component */}
-                <model-viewer
-                  src={icon3d}
-                  autoplay
-                  interaction-prompt="none"
-                  camera-controls
-                  style={{ width: '56px', height: '56px' }}
-                />
-              </div>
-              <Button type="submit" form="shop-form" disabled={submitting || !isValid} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow">
-                {submitting ? (shopId ? "Updating..." : "Saving...") : shopId ? "Update" : "Save"}
+    <Box
+      sx={{
+        minHeight: "100vh",
+        backgroundColor: "#f8f9fa",
+        py: 4,
+      }}
+    >
+      <Container maxWidth="xl">
+        <Paper
+          elevation={0}
+          sx={{
+            p: 4,
+            borderRadius: 3,
+            border: "1px solid",
+            borderColor: "divider",
+            backgroundColor: "background.paper",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+          }}
+        >
+          {/* Header */}
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+            <Box>
+              <Typography variant="h4" fontWeight="bold" color="text.primary" gutterBottom>
+                Shop Profile
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Manage your shop details and settings
+                {shopLoading ? ' · Loading…' : ''}
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              type="submit"
+              form="shop-form"
+              disabled={loading || shopLoading}
+              sx={{
+                px: 4,
+                py: 1.5,
+                backgroundColor: "primary.main",
+                fontWeight: "bold",
+              }}
+            >
+              {loading ? "Saving..." : "Save Changes"}
+            </Button>
+          </Box>
+
+          {/* Alerts */}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+          {success && (
+            <Alert severity="success" sx={{ mb: 3 }}>
+              {success}
+            </Alert>
+          )}
+          {shopError && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {String(shopError)}
+            </Alert>
+          )}
+
+          <Box component="form" id="shop-form" onSubmit={handleSubmit}>
+            <Grid container spacing={4}>
+              {/* Left Column */}
+              <Grid item xs={12} lg={8}>
+                <Stack spacing={4}>
+                  {/* Basic Information */}
+                  <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Store color="primary" />
+                        Basic Information
+                      </Typography>
+                      <Grid container spacing={3}>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            label="Shop Name"
+                            value={shopName}
+                            onChange={(e) => setShopName(e.target.value)}
+                            required
+                            placeholder="Enter your shop name"
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            label="Description"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            multiline
+                            rows={4}
+                            placeholder="Tell customers about your shop..."
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <Box>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                              Theme Color
+                            </Typography>
+                            <Box display="flex" alignItems="center" gap={2}>
+                              <input
+                                type="color"
+                                value={themeColor}
+                                onChange={(e) => setThemeColor(e.target.value)}
+                                style={{
+                                  width: 60,
+                                  height: 40,
+                                  border: "1px solid #e0e0e0",
+                                  borderRadius: 8,
+                                  cursor: "pointer",
+                                }}
+                              />
+                              <TextField
+                                value={themeColor}
+                                onChange={(e) => setThemeColor(e.target.value)}
+                                size="small"
+                                sx={{ flex: 1 }}
+                              />
+                            </Box>
+                          </Box>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Tags"
+                            value={tags}
+                            onChange={(e) => setTags(e.target.value)}
+                            placeholder="e.g., premium, handmade, organic"
+                            helperText="Comma separated tags"
+                          />
+                        </Grid>
+                      </Grid>
+
+                      {/* Categories */}
+                      <Box mt={3}>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          Shop Categories
+                        </Typography>
+                        <Box display="flex" flexWrap="wrap" gap={1} mt={1}>
+                          {SHOP_CATEGORIES.map((category) => (
+                            <Chip
+                              key={category}
+                              label={category.charAt(0).toUpperCase() + category.slice(1)}
+                              onClick={() => toggleCategory(category)}
+                              color={categories.includes(category) ? "primary" : "default"}
+                              variant={categories.includes(category) ? "filled" : "outlined"}
+                              sx={{ cursor: "pointer" }}
+                            />
+                          ))}
+                        </Box>
+                      </Box>
+                    </CardContent>
+                  </Card>
+
+                  {/* Contact Information */}
+                  <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Email color="primary" />
+                        Contact Information
+                      </Typography>
+                      <Grid container spacing={3}>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Contact Email"
+                            type="email"
+                            value={contactEmail}
+                            onChange={(e) => setContactEmail(e.target.value)}
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <Email color="action" />
+                                </InputAdornment>
+                              ),
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Contact Phone"
+                            value={contactPhone}
+                            onChange={(e) => setContactPhone(e.target.value)}
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <Phone color="action" />
+                                </InputAdornment>
+                              ),
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            label="Website"
+                            value={website}
+                            onChange={(e) => setWebsite(e.target.value)}
+                            placeholder="https://yourwebsite.com"
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <Language color="action" />
+                                </InputAdornment>
+                              ),
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Facebook"
+                            value={social.facebook}
+                            onChange={(e) => setSocial((prev) => ({ ...prev, facebook: e.target.value }))}
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <Facebook color="action" />
+                                </InputAdornment>
+                              ),
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Instagram"
+                            value={social.instagram}
+                            onChange={(e) => setSocial((prev) => ({ ...prev, instagram: e.target.value }))}
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <Instagram color="action" />
+                                </InputAdornment>
+                              ),
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Twitter"
+                            value={social.twitter}
+                            onChange={(e) => setSocial((prev) => ({ ...prev, twitter: e.target.value }))}
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <Twitter color="action" />
+                                </InputAdornment>
+                              ),
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="YouTube"
+                            value={social.youtube}
+                            onChange={(e) => setSocial((prev) => ({ ...prev, youtube: e.target.value }))}
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <YouTube color="action" />
+                                </InputAdornment>
+                              ),
+                            }}
+                          />
+                        </Grid>
+                      </Grid>
+                    </CardContent>
+                  </Card>
+
+                  {/* Address */}
+                  <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <LocationOn color="primary" />
+                        Shop Address
+                      </Typography>
+                      <Grid container spacing={3}>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            label="Street Address"
+                            value={address.street}
+                            onChange={(e) => setAddress((prev) => ({ ...prev, street: e.target.value }))}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="City"
+                            value={address.city}
+                            onChange={(e) => setAddress((prev) => ({ ...prev, city: e.target.value }))}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="State"
+                            value={address.state}
+                            onChange={(e) => setAddress((prev) => ({ ...prev, state: e.target.value }))}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Pincode"
+                            value={address.pincode}
+                            onChange={(e) => setAddress((prev) => ({ ...prev, pincode: e.target.value }))}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Country"
+                            value={address.country}
+                            onChange={(e) => setAddress((prev) => ({ ...prev, country: e.target.value }))}
+                          />
+                        </Grid>
+                      </Grid>
+                    </CardContent>
+                  </Card>
+
+                  {/* Business Details */}
+                  <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <AccountBalance color="primary" />
+                        Business Details
+                      </Typography>
+                      <Grid container spacing={3}>
+                        <Grid item xs={12} md={6}>
+                          <FormControl fullWidth>
+                            <InputLabel>Business Type</InputLabel>
+                            <Select
+                              value={businessType}
+                              label="Business Type"
+                              onChange={(e) => setBusinessType(e.target.value)}
+                            >
+                              <MenuItem value="individual">Individual</MenuItem>
+                              <MenuItem value="partnership">Partnership</MenuItem>
+                              <MenuItem value="company">Company</MenuItem>
+                              <MenuItem value="llp">LLP</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="GST Number"
+                            value={gstNumber}
+                            onChange={(e) => setGstNumber(e.target.value)}
+                            placeholder="22AAAAA0000A1Z5"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="PAN Number"
+                            value={panNumber}
+                            onChange={(e) => setPanNumber(e.target.value)}
+                            placeholder="AAAAA0000A"
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <TextField
+                            fullWidth
+                            label="Opening Time"
+                            type="time"
+                            value={businessHours.open}
+                            onChange={(e) => setBusinessHours((prev) => ({ ...prev, open: e.target.value }))}
+                            InputLabelProps={{ shrink: true }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={3}>
+                          <TextField
+                            fullWidth
+                            label="Closing Time"
+                            type="time"
+                            value={businessHours.close}
+                            onChange={(e) => setBusinessHours((prev) => ({ ...prev, close: e.target.value }))}
+                            InputLabelProps={{ shrink: true }}
+                          />
+                        </Grid>
+                      </Grid>
+                    </CardContent>
+                  </Card>
+                </Stack>
+              </Grid>
+
+              {/* Right Column */}
+              <Grid item xs={12} lg={4}>
+                <Stack spacing={4}>
+                  {/* Media */}
+                  <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        Shop Media
+                      </Typography>
+                      <Stack spacing={3}>
+                        <Box>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            Logo
+                          </Typography>
+                          <Button component="label" variant="outlined" startIcon={<CloudUpload />} fullWidth>
+                            Upload Logo
+                            <input
+                              hidden
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                            />
+                          </Button>
+                          {logoFile && <Chip label={logoFile.name} onDelete={() => setLogoFile(null)} sx={{ mt: 1 }} />}
+                          {logoPreview && (
+                            <Box mt={1}>
+                              <img
+                                src={logoPreview}
+                                alt="Logo preview"
+                                style={{ width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)" }}
+                              />
+                            </Box>
+                          )}
+                        </Box>
+
+                        <Box>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            Banner
+                          </Typography>
+                          <Button component="label" variant="outlined" startIcon={<CloudUpload />} fullWidth>
+                            Upload Banner
+                            <input
+                              hidden
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => setBannerFile(e.target.files?.[0] || null)}
+                            />
+                          </Button>
+                          {bannerFile && (
+                            <Chip label={bannerFile.name} onDelete={() => setBannerFile(null)} sx={{ mt: 1 }} />
+                          )}
+                          {bannerPreview && (
+                            <Box mt={1}>
+                              <img
+                                src={bannerPreview}
+                                alt="Banner preview"
+                                style={{ width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)" }}
+                              />
+                            </Box>
+                          )}
+                        </Box>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+
+                  {/* Payment Methods */}
+                  <Accordion elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                    <AccordionSummary expandIcon={<ExpandMore />}>
+                      <Typography variant="h6" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Payment color="primary" />
+                        Payment Methods
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <Stack spacing={3}>
+                        {/* Razorpay */}
+                        <Box>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={paymentMethods.razorpay.enabled}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    razorpay: { ...prev.razorpay, enabled: e.target.checked },
+                                  }))
+                                }
+                              />
+                            }
+                            label="Razorpay"
+                          />
+                          {paymentMethods.razorpay.enabled && (
+                            <>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Razorpay Key ID"
+                                value={paymentMethods.razorpay.keyId}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    razorpay: { ...prev.razorpay, keyId: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Razorpay Key Secret"
+                                type="password"
+                                value={paymentMethods.razorpay.keySecret}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    razorpay: { ...prev.razorpay, keySecret: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                            </>
+                          )}
+                        </Box>
+
+                        {/* Stripe */}
+                        <Box>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={paymentMethods.stripe.enabled}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    stripe: { ...prev.stripe, enabled: e.target.checked },
+                                  }))
+                                }
+                              />
+                            }
+                            label="Stripe"
+                          />
+                          {paymentMethods.stripe.enabled && (
+                            <>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Stripe Publishable Key"
+                                value={paymentMethods.stripe.publishableKey}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    stripe: { ...prev.stripe, publishableKey: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Stripe Secret Key"
+                                type="password"
+                                value={paymentMethods.stripe.secretKey}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    stripe: { ...prev.stripe, secretKey: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                            </>
+                          )}
+                        </Box>
+
+                        {/* PayU */}
+                        <Box>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={paymentMethods.payu.enabled}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    payu: { ...prev.payu, enabled: e.target.checked },
+                                  }))
+                                }
+                              />
+                            }
+                            label="PayU"
+                          />
+                          {paymentMethods.payu.enabled && (
+                            <>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="PayU Merchant Key"
+                                value={paymentMethods.payu.merchantKey}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    payu: { ...prev.payu, merchantKey: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="PayU Merchant Salt"
+                                type="password"
+                                value={paymentMethods.payu.merchantSalt}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    payu: { ...prev.payu, merchantSalt: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                            </>
+                          )}
+                        </Box>
+
+                        {/* PhonePe */}
+                        <Box>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={paymentMethods.phonepe.enabled}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    phonepe: { ...prev.phonepe, enabled: e.target.checked },
+                                  }))
+                                }
+                              />
+                            }
+                            label="PhonePe"
+                          />
+                          {paymentMethods.phonepe.enabled && (
+                            <>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="PhonePe Merchant ID"
+                                value={paymentMethods.phonepe.merchantId}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    phonepe: { ...prev.phonepe, merchantId: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="PhonePe Salt Key"
+                                type="password"
+                                value={paymentMethods.phonepe.saltKey}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    phonepe: { ...prev.phonepe, saltKey: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="PhonePe Salt Index"
+                                value={paymentMethods.phonepe.saltIndex}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    phonepe: { ...prev.phonepe, saltIndex: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                            </>
+                          )}
+                        </Box>
+
+                        {/* UPI */}
+                        <Box>
+                          <Typography variant="body2" fontWeight="medium" gutterBottom>
+                            UPI Payment
+                          </Typography>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="UPI ID"
+                            value={paymentMethods.upi.id}
+                            onChange={(e) =>
+                              setPaymentMethods((prev) => ({
+                                ...prev,
+                                upi: { ...prev.upi, id: e.target.value },
+                              }))
+                            }
+                            placeholder="yourname@bank"
+                            sx={{ mb: 1 }}
+                          />
+                          <Button component="label" variant="outlined" startIcon={<QrCode />} size="small" fullWidth>
+                            Upload QR Code
+                            <input
+                              hidden
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) =>
+                                setPaymentMethods((prev) => ({
+                                  ...prev,
+                                  upi: { ...prev.upi, qrCode: e.target.files?.[0] || null },
+                                }))
+                              }
+                            />
+                          </Button>
+                          {upiQrPreview && (
+                            <Box mt={1}>
+                              <img
+                                src={upiQrPreview}
+                                alt="UPI QR preview"
+                                style={{ width: "100%", maxHeight: 200, objectFit: "contain", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)" }}
+                              />
+                            </Box>
+                          )}
+                        </Box>
+
+                        {/* Cash on Delivery */}
+                        <Box>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={paymentMethods.cod.enabled}
+                                onChange={(e) =>
+                                  setPaymentMethods((prev) => ({
+                                    ...prev,
+                                    cod: { ...prev.cod, enabled: e.target.checked },
+                                  }))
+                                }
+                              />
+                            }
+                            label="Cash on Delivery"
+                          />
+                          {paymentMethods.cod.enabled && (
+                            <TextField
+                              fullWidth
+                              size="small"
+                              label="Minimum Order Amount"
+                              type="number"
+                              value={paymentMethods.cod.minOrder}
+                              onChange={(e) =>
+                                setPaymentMethods((prev) => ({
+                                  ...prev,
+                                  cod: { ...prev.cod, minOrder: Number(e.target.value) },
+                                }))
+                              }
+                              sx={{ mt: 1 }}
+                            />
+                          )}
+                        </Box>
+                      </Stack>
+                    </AccordionDetails>
+                  </Accordion>
+
+                  {/* Delivery Partners */}
+                  <Accordion elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                    <AccordionSummary expandIcon={<ExpandMore />}>
+                      <Typography variant="h6" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <LocalShipping color="primary" />
+                        Delivery Partners
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <Stack spacing={3}>
+                        {/* Shiprocket */}
+                        <Box>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={deliveryPartners.shiprocket.enabled}
+                                onChange={(e) =>
+                                  setDeliveryPartners((prev) => ({
+                                    ...prev,
+                                    shiprocket: { ...prev.shiprocket, enabled: e.target.checked },
+                                  }))
+                                }
+                              />
+                            }
+                            label="Shiprocket"
+                          />
+                          {deliveryPartners.shiprocket.enabled && (
+                            <>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Email"
+                                value={deliveryPartners.shiprocket.email}
+                                onChange={(e) =>
+                                  setDeliveryPartners((prev) => ({
+                                    ...prev,
+                                    shiprocket: { ...prev.shiprocket, email: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Password"
+                                type="password"
+                                value={deliveryPartners.shiprocket.password}
+                                onChange={(e) =>
+                                  setDeliveryPartners((prev) => ({
+                                    ...prev,
+                                    shiprocket: { ...prev.shiprocket, password: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="API Key (optional)"
+                                value={deliveryPartners.shiprocket.apiKey}
+                                onChange={(e) =>
+                                  setDeliveryPartners((prev) => ({
+                                    ...prev,
+                                    shiprocket: { ...prev.shiprocket, apiKey: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                            </>
+                          )}
+                        </Box>
+
+                        {/* Delhivery */}
+                        <Box>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={deliveryPartners.delhivery.enabled}
+                                onChange={(e) =>
+                                  setDeliveryPartners((prev) => ({
+                                    ...prev,
+                                    delhivery: { ...prev.delhivery, enabled: e.target.checked },
+                                  }))
+                                }
+                              />
+                            }
+                            label="Delhivery"
+                          />
+                          {deliveryPartners.delhivery.enabled && (
+                            <TextField
+                              fullWidth
+                              size="small"
+                              label="API Token"
+                              value={deliveryPartners.delhivery.token}
+                              onChange={(e) =>
+                                setDeliveryPartners((prev) => ({
+                                  ...prev,
+                                  delhivery: { ...prev.delhivery, token: e.target.value },
+                                }))
+                              }
+                              sx={{ mt: 1 }}
+                            />
+                          )}
+                        </Box>
+
+                        {/* BlueDart */}
+                        <Box>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={deliveryPartners.bluedart.enabled}
+                                onChange={(e) =>
+                                  setDeliveryPartners((prev) => ({
+                                    ...prev,
+                                    bluedart: { ...prev.bluedart, enabled: e.target.checked },
+                                  }))
+                                }
+                              />
+                            }
+                            label="Blue Dart"
+                          />
+                          {deliveryPartners.bluedart.enabled && (
+                            <>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="License Key"
+                                value={deliveryPartners.bluedart.licenseKey}
+                                onChange={(e) =>
+                                  setDeliveryPartners((prev) => ({
+                                    ...prev,
+                                    bluedart: { ...prev.bluedart, licenseKey: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Login ID"
+                                value={deliveryPartners.bluedart.loginId}
+                                onChange={(e) =>
+                                  setDeliveryPartners((prev) => ({
+                                    ...prev,
+                                    bluedart: { ...prev.bluedart, loginId: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                            </>
+                          )}
+                        </Box>
+
+                        {/* FedEx */}
+                        <Box>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={deliveryPartners.fedex.enabled}
+                                onChange={(e) =>
+                                  setDeliveryPartners((prev) => ({
+                                    ...prev,
+                                    fedex: { ...prev.fedex, enabled: e.target.checked },
+                                  }))
+                                }
+                              />
+                            }
+                            label="FedEx"
+                          />
+                          {deliveryPartners.fedex.enabled && (
+                            <>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Client ID"
+                                value={deliveryPartners.fedex.clientId}
+                                onChange={(e) =>
+                                  setDeliveryPartners((prev) => ({
+                                    ...prev,
+                                    fedex: { ...prev.fedex, clientId: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Client Secret"
+                                type="password"
+                                value={deliveryPartners.fedex.clientSecret}
+                                onChange={(e) =>
+                                  setDeliveryPartners((prev) => ({
+                                    ...prev,
+                                    fedex: { ...prev.fedex, clientSecret: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Account Number"
+                                value={deliveryPartners.fedex.accountNumber}
+                                onChange={(e) =>
+                                  setDeliveryPartners((prev) => ({
+                                    ...prev,
+                                    fedex: { ...prev.fedex, accountNumber: e.target.value },
+                                  }))
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                            </>
+                          )}
+                        </Box>
+                      </Stack>
+                    </AccordionDetails>
+                  </Accordion>
+                </Stack>
+              </Grid>
+            </Grid>
+
+            {/* Action Buttons */}
+            <Box display="flex" justifyContent="flex-end" gap={2} mt={4}>
+              <Button variant="outlined" disabled={loading || shopLoading}>
+                Cancel
               </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form id="shop-form" className="grid md:grid-cols-2 gap-10" onSubmit={handleSubmit}>
-            <div className="space-y-6">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Basic Details</h3>
-              <div>
-                <Label>Shop Name</Label>
-                <Input
-                  placeholder="Your shop name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                />
-              </div>
-
-              {/* Google Maps URL + Preview */}
-              <div className="space-y-2">
-                <Label>Google Maps URL (optional)</Label>
-                <Input
-                  placeholder="Paste a Google Maps link (we'll parse coordinates)"
-                  value={googleMapsUrl}
-                  onChange={(e) => setGoogleMapsUrl(e.target.value)}
-                  className="mt-1"
-                />
-                {(typeof lat === 'number' && typeof lng === 'number') ? (
-                  <div className="mt-2 rounded-md overflow-hidden border border-slate-200 dark:border-slate-700">
-                    <iframe
-                      title="Map preview"
-                      width="100%"
-                      height="260"
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      src={`https://www.google.com/maps?q=${lat},${lng}&z=15&output=embed`}
-                    />
-                    <div className="p-2 text-xs text-slate-600">Parsed: lat {lat}, lng {lng}</div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-500">We will only save location if we can parse lat/lng from your link.</p>
-                )}
-              </div>
-              <div>
-                <Label>Description</Label>
-                <textarea
-                  placeholder="Tell customers about your shop"
-                  value={description}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
-                  className="mt-1 w-full min-h-[120px] border rounded-md px-3 py-2 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <Label>Theme Color</Label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      value={themeColor}
-                      onChange={(e) => setThemeColor(e.target.value)}
-                      className="h-10 w-14 p-0 border rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
-                    />
-                    <Input
-                      value={themeColor}
-                      onChange={(e) => setThemeColor(e.target.value)}
-                      className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label>Shop Categories</Label>
-                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {SHOP_TYPES.map((t) => {
-                      const active = categories.includes(t);
-                      return (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setCategories((prev) => active ? prev.filter(x => x !== t) : [...prev, t])}
-                          className={`text-sm px-3 py-2 rounded-md border transition select-none ${active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-emerald-400'}`}
-                        >
-                          {t}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">Click to toggle categories</p>
-                </div>
-              </div>
-
-              <div>
-                <Label>Tags (comma separated)</Label>
-                <Input
-                  placeholder="e.g. sustainable, handmade"
-                  value={tags}
-                  onChange={(e) => setTags(e.target.value)}
-                  className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                />
-              </div>
-
-              <hr className="border-slate-200 dark:border-slate-800" />
-              <h3 className="pt-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Media</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Logo</Label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                  {logoPreview && (
-                    <img src={logoPreview} alt="logo preview" className="mt-2 h-28 w-full object-cover rounded-md border" />
-                  )}
-                </div>
-                <div>
-                  <Label>Banner</Label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setBannerFile(e.target.files?.[0] || null)}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                  {bannerPreview && (
-                    <img src={bannerPreview} alt="banner preview" className="mt-2 h-28 w-full object-cover rounded-md border" />
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Contact & Social</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Contact Email</Label>
-                  <Input
-                    type="email"
-                    placeholder="you@shop.com"
-                    value={contactEmail}
-                    onChange={(e) => setContactEmail(e.target.value)}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                </div>
-                <div>
-                  <Label>Contact Phone</Label>
-                  <Input
-                    placeholder="99999 99999"
-                    value={contactPhone}
-                    onChange={(e) => setContactPhone(e.target.value)}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>Website</Label>
-                <Input
-                  placeholder="https://"
-                  value={website}
-                  onChange={(e) => setWebsite(e.target.value)}
-                  className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Facebook</Label>
-                  <Input
-                    placeholder="https://facebook.com/"
-                    value={social.facebook}
-                    onChange={(e) => setSocial({ ...social, facebook: e.target.value })}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                </div>
-                <div>
-                  <Label>Instagram</Label>
-                  <Input
-                    placeholder="https://instagram.com/"
-                    value={social.instagram}
-                    onChange={(e) => setSocial({ ...social, instagram: e.target.value })}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                </div>
-                <div>
-                  <Label>Twitter</Label>
-                  <Input
-                    placeholder="https://x.com/"
-                    value={social.twitter}
-                    onChange={(e) => setSocial({ ...social, twitter: e.target.value })}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                </div>
-                <div>
-                  <Label>YouTube</Label>
-                  <Input
-                    placeholder="https://youtube.com/"
-                    value={social.youtube}
-                    onChange={(e) => setSocial({ ...social, youtube: e.target.value })}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                </div>
-              </div>
-
-              <hr className="border-slate-200 dark:border-slate-800" />
-              <h3 className="pt-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Address</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Street</Label>
-                  <Input
-                    value={address.street}
-                    onChange={(e) => setAddress({ ...address, street: e.target.value })}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                </div>
-                <div>
-                  <Label>City</Label>
-                  <Input
-                    value={address.city}
-                    onChange={(e) => setAddress({ ...address, city: e.target.value })}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                </div>
-                <div>
-                  <Label>State</Label>
-                  <Input
-                    value={address.state}
-                    onChange={(e) => setAddress({ ...address, state: e.target.value })}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                </div>
-                <div>
-                  <Label>Country</Label>
-                  <Input
-                    value={address.country}
-                    onChange={(e) => setAddress({ ...address, country: e.target.value })}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                </div>
-                <div>
-                  <Label>Pincode</Label>
-                  <Input
-                    value={address.pincode}
-                    onChange={(e) => setAddress({ ...address, pincode: e.target.value })}
-                    className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
-                  />
-                </div>
-              </div>
-
-              <hr className="border-slate-200 dark:border-slate-800" />
-              <div className="space-y-2">
-                <Label>3D Icon for Shop Page</Label>
-                <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                  {ICON_PRESETS.map((icon) => (
-                    <button
-                      type="button"
-                      key={icon.id}
-                      onClick={() => setIcon3d(icon.url)}
-                      className={`border rounded-md p-2 text-sm bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-emerald-400 transition ${icon3d === icon.url ? "ring-2 ring-emerald-500" : ""}`}
-                      title={icon.label}
-                    >
-                      {icon.label}
-                    </button>
-                  ))}
-                </div>
-                {/* Live 3D preview */}
-                <div className="mt-3">
-                  {/* @ts-ignore model-viewer is a web component */}
-                  <model-viewer
-                    src={icon3d}
-                    autoplay
-                    ar
-                    camera-controls
-                    style={{ width: '100%', height: '260px', background: '#f8fafc', borderRadius: '12px' }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="md:col-span-2 flex items-center gap-4 pt-4">
-              <Button disabled={submitting || !isValid} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow">
-                {submitting ? (shopId ? "Updating..." : "Saving...") : shopId ? "Update" : "Save"}
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={loading || shopLoading}
+                sx={{
+                  px: 4,
+                  backgroundColor: "primary.main",
+                  fontWeight: "bold",
+                }}
+              >
+                {loading ? "Saving..." : "Save Changes"}
               </Button>
-              {error && <p className="text-red-600 text-sm font-medium">{error}</p>}
-              {success && <p className="text-emerald-700 text-sm font-medium">{success}</p>}
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  );
+            </Box>
+          </Box>
+        </Paper>
+      </Container>
+    </Box>
+  )
 }
-

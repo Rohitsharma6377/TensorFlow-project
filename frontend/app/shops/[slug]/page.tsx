@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api/v1";
 
@@ -16,7 +15,18 @@ type Shop = {
   banner?: { url: string };
   categories?: string[];
   metadata?: Record<string, any> & { themeColor?: string };
-  contact?: { email?: string; phone?: string; website?: string };
+  contact?: { email?: string; phone?: string; website?: string; social?: { instagram?: string; facebook?: string; twitter?: string } };
+  owner?: { username?: string; email?: string; profile?: { fullName?: string; avatarUrl?: string } };
+};
+
+type Product = {
+  _id: string;
+  shopId: string;
+  title: string;
+  price: number;
+  mrp?: number;
+  mainImage?: string;
+  images?: string[];
 };
 
 export default function ShopPage({ params }: { params: { slug: string } }) {
@@ -26,8 +36,7 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
   const [rating, setRating] = useState<{ average: number; count: number }>({ average: 0, count: 0 });
   const [reviews, setReviews] = useState<any[]>([]);
   const [isFollowing, setIsFollowing] = useState<boolean | null>(null);
-  const [myRating, setMyRating] = useState<number>(0);
-  const [myComment, setMyComment] = useState<string>("");
+  const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -39,9 +48,10 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
         setShop(shopData.shop);
 
         const id = shopData.shop._id;
-        const [statsRes, revRes] = await Promise.all([
+        const [statsRes, revRes, followingRes] = await Promise.all([
           fetch(`${API_BASE}/shops/${id}/stats`, { credentials: "include" }),
           fetch(`${API_BASE}/shops/${id}/reviews`, { credentials: "include" }),
+          fetch(`${API_BASE}/social/following`, { credentials: "include" }).catch(() => null),
         ]);
         if (statsRes.ok) {
           const s = await statsRes.json();
@@ -51,6 +61,13 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
         if (revRes.ok) {
           const r = await revRes.json();
           setReviews(r.reviews || []);
+        }
+        if (followingRes && followingRes.ok) {
+          const f = await followingRes.json();
+          const followed: string[] = f.shops || [];
+          setIsFollowing(followed.includes(id));
+        } else {
+          setIsFollowing(false);
         }
       } catch (e) {
         // eslint-disable-next-line no-console
@@ -64,6 +81,22 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
   }, [params.slug]);
 
   const themeColor = shop?.metadata?.themeColor || "#10b981";
+
+  // Fetch products (simple list)
+  async function loadProducts(shopId: string) {
+    const res = await fetch(`${API_BASE}/products?shopId=${shopId}&limit=100`, { credentials: "include" });
+    if (res.ok) {
+      const data = await res.json();
+      setProducts(data.products || []);
+    }
+  }
+
+  useEffect(() => {
+    if (shop?._id) {
+      loadProducts(shop._id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shop?._id]);
 
   async function followToggle() {
     if (!shop) return;
@@ -82,42 +115,13 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
     }
   }
 
-  async function submitReview(e: React.FormEvent) {
-    e.preventDefault();
-    if (!shop || myRating <= 0) return;
-    const id = shop._id;
-    const res = await fetch(`${API_BASE}/shops/${id}/reviews`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ rating: myRating, comment: myComment }),
-    });
-    if (res.ok) {
-      setMyComment("");
-      // refresh
-      const [statsRes, revRes] = await Promise.all([
-        fetch(`${API_BASE}/shops/${id}/stats`, { credentials: "include" }),
-        fetch(`${API_BASE}/shops/${id}/reviews`, { credentials: "include" }),
-      ]);
-      if (statsRes.ok) {
-        const s = await statsRes.json();
-        setFollowers(s.followers || 0);
-        setRating(s.rating || { average: 0, count: 0 });
-      }
-      if (revRes.ok) {
-        const r = await revRes.json();
-        setReviews(r.reviews || []);
-      }
-    }
-  }
-
-  const stars = useMemo(() => [1, 2, 3, 4, 5], []);
+  // Reviews are read-only here
 
   if (loading) return <div className="p-6">Loading...</div>;
   if (!shop) return <div className="p-6">Shop not found</div>;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
       {/* Banner */}
       {shop.banner?.url && (
         <div className="rounded-xl overflow-hidden border">
@@ -132,44 +136,58 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
         <div className="flex-1">
           <h1 className="text-2xl font-semibold" style={{ color: themeColor }}>{shop.name}</h1>
           <p className="text-slate-600 mt-1">{shop.description}</p>
-          <div className="flex items-center gap-4 mt-3 text-sm text-slate-600">
+          <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-slate-600">
             <span>Followers: {followers}</span>
             <span>Rating: {rating.average.toFixed(1)} ({rating.count})</span>
             {shop.categories && shop.categories.length > 0 && (
               <span>Categories: {shop.categories.join(", ")}</span>
             )}
           </div>
+          {/* Contact & Owner */}
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-700">
+            <div className="space-y-1">
+              {shop.contact?.email && <div>Email: <a className="text-emerald-700 hover:underline" href={`mailto:${shop.contact.email}`}>{shop.contact.email}</a></div>}
+              {shop.contact?.phone && <div>Phone: <a className="text-emerald-700" href={`tel:${shop.contact.phone}`}>{shop.contact.phone}</a></div>}
+              {shop.contact?.website && <div>Website: <a className="text-emerald-700 hover:underline" href={shop.contact.website} target="_blank" rel="noreferrer">{shop.contact.website}</a></div>}
+            </div>
+            <div className="space-y-1">
+              <div>Owner: {shop.owner?.profile?.fullName || shop.owner?.username || '—'}</div>
+              {shop.owner?.email && <div>Owner Email: <a className="text-emerald-700 hover:underline" href={`mailto:${shop.owner.email}`}>{shop.owner.email}</a></div>}
+            </div>
+          </div>
         </div>
-        <div className="shrink-0">
+        <div className="shrink-0 flex flex-col items-end gap-2">
           <Button onClick={followToggle}>{isFollowing ? "Unfollow" : "Follow"}</Button>
+          <Link href={`/chat?shop=${shop._id}`}>
+            <Button variant="outline">Chat</Button>
+          </Link>
         </div>
       </div>
 
-      {/* Reviews */}
+      
+
+      {/* Top Products */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Top Products</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {products.slice(0, 8).map((p) => (
+            <Link key={p._id} href={`/products/${p._id}`} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
+              <div className="aspect-square bg-slate-100">
+                <img src={p.mainImage || p.images?.[0] || '/product-placeholder.png'} alt={p.title} className="w-full h-full object-cover" />
+              </div>
+              <div className="p-2">
+                <div className="text-sm font-medium line-clamp-2">{p.title}</div>
+                <div className="text-emerald-700 font-semibold mt-1">₹{p.price.toLocaleString()}</div>
+              </div>
+            </Link>
+          ))}
+          {products.length === 0 && <div className="text-sm text-slate-500">No products yet.</div>}
+        </div>
+      </section>
+
+      {/* Reviews (read-only) */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Reviews</h2>
-        <form onSubmit={submitReview} className="border rounded-md p-3 space-y-2">
-          <Label>Your rating</Label>
-          <div className="flex items-center gap-2">
-            {stars.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={`text-2xl ${myRating >= s ? 'text-yellow-500' : 'text-slate-400'}`}
-                onClick={() => setMyRating(s)}
-                aria-label={`Rate ${s}`}
-              >
-                ★
-              </button>
-            ))}
-          </div>
-          <Label className="mt-2">Comment (optional)</Label>
-          <Input value={myComment} onChange={(e) => setMyComment(e.target.value)} placeholder="Write a short review..." />
-          <div>
-            <Button disabled={myRating <= 0}>Submit review</Button>
-          </div>
-        </form>
-
         <div className="space-y-2">
           {reviews.length === 0 && <p className="text-slate-500 text-sm">No reviews yet.</p>}
           {reviews.map((r) => (
@@ -181,6 +199,28 @@ export default function ShopPage({ params }: { params: { slug: string } }) {
               {r.comment && <div className="text-sm text-slate-600 mt-1">{r.comment}</div>}
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* All Products */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">All Products</h2>
+          <Link href={`/shops/${shop.slug}/products`} className="text-emerald-700 hover:underline text-sm">View all</Link>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {products.map((p) => (
+            <Link key={p._id} href={`/products/${p._id}`} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
+              <div className="aspect-square bg-slate-100">
+                <img src={p.mainImage || p.images?.[0] || '/product-placeholder.png'} alt={p.title} className="w-full h-full object-cover" />
+              </div>
+              <div className="p-2">
+                <div className="text-sm font-medium line-clamp-2">{p.title}</div>
+                <div className="text-emerald-700 font-semibold mt-1">₹{p.price.toLocaleString()}</div>
+              </div>
+            </Link>
+          ))}
+          {products.length === 0 && <div className="text-sm text-slate-500">No products yet.</div>}
         </div>
       </section>
     </div>

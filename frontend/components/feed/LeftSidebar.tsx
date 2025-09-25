@@ -1,15 +1,12 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ChevronRightIcon, StarIcon, TagIcon, FireIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
+import { useAppDispatch, useAppSelector } from '@/store';
+import { fetchSidebarShops, toggleFollowShop, setFollowing } from '@/store/slice/shopsSlice';
 
-interface Shop {
-  id: string;
-  name: string;
-  avatar: string;
-  isVerified: boolean;
-  followers: number;
-}
+interface ShopStats { followers: number }
 
 interface Offer {
   id: string;
@@ -28,30 +25,20 @@ interface Banner {
 }
 
 export function LeftSidebar() {
-  // Mock data - replace with real data from your API
-  const featuredShops: Shop[] = [
-    {
-      id: '1',
-      name: 'Fashion Hub',
-      avatar: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=100&h=100&fit=crop&crop=center',
-      isVerified: true,
-      followers: 12500
-    },
-    {
-      id: '2', 
-      name: 'Tech Store',
-      avatar: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=100&h=100&fit=crop&crop=center',
-      isVerified: true,
-      followers: 8900
-    },
-    {
-      id: '3',
-      name: 'Home Decor',
-      avatar: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=100&h=100&fit=crop&crop=center',
-      isVerified: false,
-      followers: 5600
+  const dispatch = useAppDispatch();
+  const { items: featuredShops, status } = useAppSelector((s) => s.shops);
+
+  useEffect(() => {
+    if (status === 'idle' && featuredShops.length === 0) {
+      dispatch(fetchSidebarShops());
     }
-  ];
+  }, [dispatch, status, featuredShops.length]);
+
+  const onToggleFollow = (shopId: string, follow: boolean) => {
+    // Optimistic update
+    dispatch(setFollowing({ shopId, isFollowing: follow }));
+    dispatch(toggleFollowShop({ id: shopId, follow }));
+  };
 
   const hotOffers: Offer[] = [
     {
@@ -102,32 +89,53 @@ export function LeftSidebar() {
           </div>
           
           <div className="space-y-3">
-            {featuredShops.map((shop) => (
-              <div key={shop.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-gray-800 cursor-pointer transition-colors border border-transparent hover:border-emerald-200">
-                <div className="relative">
-                  <img 
-                    src={shop.avatar} 
-                    alt={shop.name}
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                  {shop.isVerified && (
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
-                      <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
+            {status === 'loading' && <div className="text-xs text-gray-500">Loading shops...</div>}
+            {status !== 'loading' && featuredShops.length === 0 && (
+              <div className="text-xs text-gray-500">No shops found.</div>
+            )}
+            {featuredShops.map((shop) => {
+              const logo = typeof (shop as any).logo === 'object' ? ((shop as any).logo as any)?.url : ((shop as any).logo as string | undefined);
+              const isFollowing = !!(shop as any).isFollowing;
+              return (
+                <div
+                  key={shop._id}
+                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-gray-800 transition-colors border border-transparent hover:border-emerald-200"
+                >
+                  <Link href={`/shops/${shop.slug}`} className="flex items-center gap-3">
+                    <div className="relative">
+                      <img
+                        src={logo || '/shop-placeholder.png'}
+                        alt={shop.name}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                      {shop.isVerified && (
+                        <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
+                          <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
                     </div>
-                  )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-emerald-900 dark:text-white truncate">
+                        {shop.name}
+                      </p>
+                      {typeof (shop as any).followers === 'number' && (
+                        <p className="text-xs text-sky-600 dark:text-gray-400">
+                          {(shop as any).followers.toLocaleString()} followers
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                  <button
+                    onClick={() => onToggleFollow(shop._id, !isFollowing)}
+                    className={`text-xs px-2 py-1 rounded-full border ${isFollowing ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50' : 'border-sky-300 text-sky-700 hover:bg-sky-50'}`}
+                  >
+                    {isFollowing ? 'Unfollow' : 'Follow'}
+                  </button>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-emerald-900 dark:text-white truncate">
-                    {shop.name}
-                  </p>
-                  <p className="text-xs text-sky-600 dark:text-gray-400">
-                    {shop.followers.toLocaleString()} followers
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

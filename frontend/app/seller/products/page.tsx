@@ -32,10 +32,13 @@ import InputLabel from '@mui/material/InputLabel';
 import FormControl from '@mui/material/FormControl';
 import Stack from '@mui/material/Stack';
 import Chip from '@mui/material/Chip';
+import Autocomplete from '@mui/material/Autocomplete';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { fetchBrands, createBrand, updateBrand, deleteBrand } from '@/store/slice/brandSlice';
 import { fetchCategories, createCategory, updateCategory, deleteCategory } from '@/store/slice/categorySlice';
 import { fetchTags, createTag, updateTag, deleteTag } from '@/store/slice/tagSlice';
+import { TaxesAPI, CouponsAPI } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
 
@@ -108,6 +111,23 @@ export default function SellerProductsPage() {
     })();
   }, [shopId, page, limit]);
 
+  // Load taxes and coupons from backend
+  useEffect(() => {
+    if (!shopId) return;
+    (async () => {
+      try {
+        const [tRes, cRes] = await Promise.all([
+          TaxesAPI.list(shopId),
+          CouponsAPI.list(shopId),
+        ]);
+        setTaxes((tRes.taxes || []).map((t: any) => ({ id: t._id || t.id, name: t.name, percent: t.percent, active: !!t.active })));
+        setCoupons((cRes.coupons || []).map((c: any) => ({ id: c._id || c.id, code: c.code, type: c.type, value: c.value, expiry: c.expiry ? String(c.expiry).slice(0,10) : undefined, active: !!c.active })));
+      } catch (e) {
+        console.warn('Failed to load taxes/coupons', e);
+      }
+    })();
+  }, [shopId]);
+
   async function toggleStatus(id: string, current: Product['status']) {
     try {
       const status = current === 'active' ? 'archived' : 'active';
@@ -117,6 +137,121 @@ export default function SellerProductsPage() {
       }
     } catch {}
   }
+
+type DeliveryZones = { allIndia?: boolean; allPincodesInStates?: boolean; pincodes?: string[]; states?: string[]; districts?: string[] };
+function DeliveryZonesDialog({ productId, onSaved }: { productId: string; onSaved: (zones: DeliveryZones) => void }) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState(0);
+  const [allIndia, setAllIndia] = useState(false);
+  const [allPincodesInStates, setAllPincodesInStates] = useState(false);
+  const [statesArr, setStatesArr] = useState<string[]>([]);
+  const [districtsArr, setDistrictsArr] = useState<string[]>([]);
+  const [pincodesArr, setPincodesArr] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [options, setOptions] = useState<any>({});
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/products/${productId}`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        const opt = data?.product?.options || {};
+        setOptions(opt);
+        const dz: DeliveryZones = opt.deliveryZones || {};
+        setAllIndia(!!dz.allIndia);
+        setAllPincodesInStates(!!dz.allPincodesInStates);
+        setStatesArr(Array.isArray(dz.states) ? dz.states : []);
+        setDistrictsArr(Array.isArray(dz.districts) ? dz.districts : []);
+        setPincodesArr(Array.isArray(dz.pincodes) ? dz.pincodes.map(String) : []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleOpen = async () => { setOpen(true); await load(); };
+  const handleSave = async () => {
+    const nextOptions = {
+      ...(options || {}),
+      deliveryZones: {
+        allIndia: allIndia || undefined,
+        allPincodesInStates: allPincodesInStates || undefined,
+        states: statesArr.length ? statesArr : undefined,
+        districts: districtsArr.length ? districtsArr : undefined,
+        pincodes: (allPincodesInStates ? undefined : (pincodesArr.length ? pincodesArr : undefined)),
+      }
+    };
+    const res = await fetch(`${API_BASE}/products/${productId}`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ options: nextOptions }),
+    });
+    if (res.ok) {
+      onSaved(nextOptions.deliveryZones);
+      setOpen(false);
+    }
+  };
+
+  return (
+    <>
+      <Button size="small" variant="outlined" onClick={handleOpen}>🚚 Delivery Zones</Button>
+      <Dialog open={open} onClose={()=>setOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Delivery Zones</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <FormControlLabel control={<Switch checked={allIndia} onChange={(e)=>setAllIndia(e.target.checked)} />} label="All India Delivery" />
+            <Box sx={{ color: 'text.secondary', fontSize: 13, mt: -1 }}>
+              When All India is enabled, specific regions and pincodes will be ignored.
+            </Box>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 1 }}>
+              <Tabs value={tab} onChange={(_, v)=>setTab(v)}>
+                <Tab label="Regions" />
+                <Tab label="Pincodes" disabled={allPincodesInStates} />
+              </Tabs>
+            </Box>
+            {tab === 0 && (
+              <Stack spacing={2} sx={{ pt: 2 }}>
+                <Autocomplete
+                  multiple
+                  freeSolo
+                  options={[]}
+                  value={statesArr}
+                  onChange={(_, v)=> setStatesArr(v as string[])}
+                  renderInput={(params)=> <TextField {...params} label="States" placeholder="Type and press Enter to add"/>}
+                />
+                <Autocomplete
+                  multiple
+                  freeSolo
+                  options={[]}
+                  value={districtsArr}
+                  onChange={(_, v)=> setDistrictsArr(v as string[])}
+                  renderInput={(params)=> <TextField {...params} label="Districts" placeholder="Type and press Enter to add"/>}
+                />
+                <FormControlLabel control={<Switch checked={allPincodesInStates} onChange={(e)=> setAllPincodesInStates(e.target.checked)} />} label="All pincodes in selected states" />
+              </Stack>
+            )}
+            {tab === 1 && (
+              <Autocomplete
+                multiple
+                freeSolo
+                options={[]}
+                value={pincodesArr}
+                onChange={(_, v)=> setPincodesArr((v as string[]).map(s=>s.replace(/\D/g,'')).filter(Boolean))}
+                renderInput={(params)=> <TextField {...params} label="Pincodes" placeholder="110001, 560001, ..."/>}
+              />
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>setOpen(false)}>Cancel</Button>
+          <Button variant="contained" disabled={loading} onClick={handleSave}>Save</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
 
   async function removeProduct(id: string) {
     if (!confirm('Delete this product?')) return;
@@ -183,6 +318,7 @@ export default function SellerProductsPage() {
                               <Button size="small" variant="outlined" onClick={()=>router.push(`/seller/products/${p._id}`)}>✏️ Edit</Button>
                               <Button size="small" variant="outlined" color="error" onClick={()=>removeProduct(p._id)}>🗑 Delete</Button>
                               <Button size="small" variant="outlined" color="primary" onClick={()=>toggleStatus(p._id, p.status)}>✅ Toggle</Button>
+                              <DeliveryZonesDialog productId={p._id} onSaved={(zones)=>{/* no-op UI */}} />
                             </Box>
                           </TableCell>
                         </TableRow>
@@ -202,7 +338,12 @@ export default function SellerProductsPage() {
           {activeTab === 1 && (
             <Box sx={{ pt: 2 }}>
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
-                <EditTaxDialog onSave={(tax)=> setTaxes((prev)=>[{ id: crypto.randomUUID(), ...tax, active: true }, ...prev])} />
+                <EditTaxDialog onSave={async (tax)=> {
+                  if (!shopId) return;
+                  const res = await TaxesAPI.create({ shop: shopId, name: tax.name, percent: tax.percent });
+                  const t: any = (res as any).tax;
+                  setTaxes(prev => [{ id: String(t._id), name: t.name, percent: t.percent, active: !!t.active }, ...prev]);
+                }} />
               </Box>
               <SimpleTable
                 headers={["Tax Name","Percentage","Status","Actions"]}
@@ -211,10 +352,21 @@ export default function SellerProductsPage() {
                   `${t.percent}%`,
                   t.active ? 'Active' : 'Inactive',
                   <RowActions key={t.id}
-                    onEdit={()=> setTaxes(taxes.map(x=> x.id===t.id? x : x))}
-                    editRenderer={<EditTaxDialog initial={{ name: t.name, percent: t.percent }} onSave={(val)=> setTaxes(taxes.map(x=> x.id===t.id? { ...x, ...val }: x))} small />}
-                    onToggle={()=>setTaxes(taxes.map(x=>x.id===t.id?{...x,active:!x.active}:x))}
-                    onDelete={()=>setTaxes(taxes.filter(x=>x.id!==t.id))}
+                    onEdit={()=> {}}
+                    editRenderer={<EditTaxDialog initial={{ name: t.name, percent: t.percent }} onSave={async (val)=> {
+                      const res = await TaxesAPI.update(t.id, val);
+                      const nt: any = (res as any).tax;
+                      setTaxes(taxes.map(x=> x.id===t.id? { id: t.id, name: nt.name, percent: nt.percent, active: !!nt.active }: x))
+                    }} small />}
+                    onToggle={async ()=>{
+                      const res = await TaxesAPI.update(t.id, { active: !t.active });
+                      const nt: any = (res as any).tax;
+                      setTaxes(taxes.map(x=> x.id===t.id? { id: t.id, name: nt.name, percent: nt.percent, active: !!nt.active }: x))
+                    }}
+                    onDelete={async ()=>{
+                      await TaxesAPI.remove(t.id);
+                      setTaxes(taxes.filter(x=>x.id!==t.id))
+                    }}
                   />
                 ])}
               />
@@ -224,7 +376,12 @@ export default function SellerProductsPage() {
           {activeTab === 2 && (
             <Box sx={{ pt: 2 }}>
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
-                <EditCouponDialog onSave={(cp)=> setCoupons((prev)=>[{ id: crypto.randomUUID(), ...cp, active: true }, ...prev])} />
+                <EditCouponDialog onSave={async (cp)=> {
+                  if (!shopId) return;
+                  const res = await CouponsAPI.create({ shop: shopId, code: cp.code, type: cp.type, value: cp.value, expiry: cp.expiry });
+                  const c = res.coupon as any;
+                  setCoupons(prev => [{ id: String(c._id || c.id), code: c.code, type: c.type, value: c.value, expiry: c.expiry ? String(c.expiry).slice(0,10) : undefined, active: !!c.active }, ...prev]);
+                }} />
               </Box>
               <SimpleTable
                 headers={["Coupon Code","Discount Type","Value","Expiry Date","Status","Actions"]}
@@ -235,10 +392,21 @@ export default function SellerProductsPage() {
                   c.expiry || '-',
                   c.active ? 'Active' : 'Inactive',
                   <RowActions key={c.id}
-                    onEdit={()=> setCoupons(coupons.map(x=> x.id===c.id? x : x))}
-                    editRenderer={<EditCouponDialog initial={{ code: c.code, type: c.type, value: c.value, expiry: c.expiry }} onSave={(val)=> setCoupons(coupons.map(x=> x.id===c.id? { ...x, ...val }: x))} small />}
-                    onToggle={()=>setCoupons(coupons.map(x=>x.id===c.id?{...x,active:!x.active}:x))}
-                    onDelete={()=>setCoupons(coupons.filter(x=>x.id!==c.id))}
+                    onEdit={()=> {}}
+                    editRenderer={<EditCouponDialog initial={{ code: c.code, type: c.type, value: c.value, expiry: c.expiry }} onSave={async (val)=> {
+                      const res = await CouponsAPI.update(c.id, val);
+                      const u: any = res.coupon;
+                      setCoupons(coupons.map(x=> x.id===c.id? { id: c.id, code: u.code, type: u.type, value: u.value, expiry: u.expiry ? String(u.expiry).slice(0,10) : undefined, active: !!u.active }: x))
+                    }} small />}
+                    onToggle={async ()=>{
+                      const res = await CouponsAPI.update(c.id, { active: !c.active });
+                      const u: any = res.coupon;
+                      setCoupons(coupons.map(x=> x.id===c.id? { id: c.id, code: u.code, type: u.type, value: u.value, expiry: u.expiry ? String(u.expiry).slice(0,10) : undefined, active: !!u.active }: x))
+                    }}
+                    onDelete={async ()=>{
+                      await CouponsAPI.remove(c.id);
+                      setCoupons(coupons.filter(x=>x.id!==c.id))
+                    }}
                   />
                 ])}
               />
@@ -544,7 +712,7 @@ function EditCouponDialog({ initial, onSave, small }: { initial?: CouponInput; o
   const [code, setCode] = useState(initial?.code || '');
   const [type, setType] = useState<CouponInput['type']>(initial?.type || 'percent');
   const [value, setValue] = useState<number>(initial?.value ?? 0);
-  const [expiry, setExpiry] = useState(initial?.expiry || '');
+  const [expiry, setExpiry] = useState(initial?.expiry ? String(initial.expiry).slice(0,10) : '');
   const canSave = code.trim().length > 0 && value >= 0;
   const trigger = small ? (
     <IconButton size="small" onClick={()=>setOpen(true)} aria-label="edit"><EditIcon fontSize="small"/></IconButton>
@@ -567,7 +735,7 @@ function EditCouponDialog({ initial, onSave, small }: { initial?: CouponInput; o
               </Select>
             </FormControl>
             <TextField label={type === 'percent' ? 'Percent (%)' : 'Amount'} type="number" value={value} onChange={(e)=>setValue(Number(e.target.value))}/>
-            <TextField label="Expiry (optional)" placeholder="YYYY-MM-DD" value={expiry} onChange={(e)=>setExpiry(e.target.value)} />
+            <TextField label="Expiry (optional)" type="date" value={expiry} onChange={(e)=>setExpiry(e.target.value)} InputLabelProps={{ shrink: true }} />
           </Stack>
         </DialogContent>
         <DialogActions>

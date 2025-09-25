@@ -8,12 +8,20 @@ let S3Client, PutObjectCommand;
 function ensureCloudinary() {
   if (!cloudinary) {
     cloudinary = require('cloudinary').v2;
+    // Validate required envs early to surface misconfiguration
+    const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env;
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+      throw new Error('Cloudinary env vars missing: please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET');
+    }
     cloudinary.config({
       cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
       api_key: process.env.CLOUDINARY_API_KEY,
       api_secret: process.env.CLOUDINARY_API_SECRET,
       secure: true,
     });
+    if (process.env.NODE_ENV !== 'test') {
+      console.log('[upload] Cloudinary configured for cloud:', process.env.CLOUDINARY_CLOUD_NAME);
+    }
   }
 }
 
@@ -29,7 +37,10 @@ async function uploadBufferToCloudinary(buffer, filename, folder) {
     const stream = cloudinary.uploader.upload_stream(
       { folder, public_id: path.parse(filename).name, resource_type: 'auto' },
       (err, result) => {
-        if (err) return reject(err);
+        if (err) {
+          console.error('[upload] Cloudinary upload failed for', filename, '->', err?.message || err);
+          return reject(err);
+        }
         resolve({ url: result.secure_url, provider: 'cloudinary', key: result.public_id });
       }
     );
@@ -67,6 +78,9 @@ function guessContentType(filename) {
  */
 async function uploadFile({ buffer, originalname, folder = 'uploads' }) {
   const provider = (process.env.UPLOAD_PROVIDER || 'cloudinary').toLowerCase();
+  if (process.env.NODE_ENV !== 'test') {
+    console.log('[upload] provider =', provider, '| file =', originalname, '| folder =', folder);
+  }
   if (provider === 's3') return uploadBufferToS3(buffer, originalname, folder);
   return uploadBufferToCloudinary(buffer, originalname, folder);
 }

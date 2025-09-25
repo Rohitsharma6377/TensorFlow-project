@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
-import { FeedAPI, type PostDTO } from '@/lib/api'
+import { FeedAPI, PostsAPI, type PostDTO, type ApiError } from '@/lib/api'
 
 interface FeedState {
   items: PostDTO[]
@@ -13,8 +13,21 @@ const initialState: FeedState = {
 }
 
 export const fetchFeed = createAsyncThunk('feed/list', async () => {
-  const res = await FeedAPI.list()
-  return res.posts
+  try {
+    const res = await FeedAPI.list()
+    if (Array.isArray(res.posts) && res.posts.length > 0) return res.posts
+    // Fallback: if personalized feed is empty, show public posts
+    const pub = await PostsAPI.list()
+    return pub.posts
+  } catch (e: any) {
+    const err = e as ApiError
+    if (err?.status === 401) {
+      // Fallback to public posts on unauthorized
+      const pub = await PostsAPI.list()
+      return pub.posts
+    }
+    throw e
+  }
 })
 
 const slice = createSlice({

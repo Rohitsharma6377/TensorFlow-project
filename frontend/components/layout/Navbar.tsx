@@ -21,6 +21,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Icons } from '@/components/icons';
 import { Skeleton } from '@/components/ui/skeleton';
+import SearchModal from '@/components/search/SearchModal';
 
 interface NavItem {
   name: string;
@@ -85,6 +86,8 @@ export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openChat, setOpenChat] = useState(false);
   const [openNotifs, setOpenNotifs] = useState(false);
+  const [openSearch, setOpenSearch] = useState(false);
+  const [searchQ, setSearchQ] = useState('');
   const dispatch = useAppDispatch();
   const { user, accessToken, status } = useAppSelector((s) => s.auth);
   const isAuthenticated = Boolean(user && accessToken);
@@ -229,6 +232,9 @@ export function Navbar() {
             <input
               type="text"
               placeholder="Search products..."
+              value={searchQ}
+              onFocus={() => setOpenSearch(true)}
+              onChange={(e) => { setSearchQ(e.target.value); if (!openSearch) setOpenSearch(true); }}
               className="w-full rounded-md border border-input bg-background pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
             />
           </div>
@@ -312,7 +318,7 @@ export function Navbar() {
               <Icons.menu className="h-5 w-5" />
             )}
             <span className="sr-only">Toggle menu</span>
-        </div>
+          </Button>
            
           {/* Quick action icons for mobile */}
           <div className="flex gap-2 pt-2 border-t border-slate-800">
@@ -327,9 +333,14 @@ export function Navbar() {
           </div>
     </div>
 
+  {/* Close header inner container */}
+  </div>
+
   {/* Slide-over panels (portals will render above all) */}
   {/* <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} /> */}
   {/* {!hideChatOnThisRoute && <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />} */}
+  {/* Search Modal */}
+  <SearchModal open={openSearch} onClose={() => setOpenSearch(false)} query={searchQ} />
 </header>
 
 </>

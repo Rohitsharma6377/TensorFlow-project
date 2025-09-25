@@ -8,6 +8,25 @@ const ShopReview = require('../models/ShopReview');
 
 const router = express.Router();
 
+// Public list shops with optional filters: ?featured=true&limit=10
+router.get('/', async (req, res) => {
+  try {
+    const { featured, limit = 20 } = req.query;
+    const q = { status: 'active', isActive: true };
+    if (featured === 'true') q.isFeatured = true;
+    const lim = Math.min(parseInt(limit, 10) || 20, 50);
+    const shops = await Shop.find(q)
+      .select('name slug logo isVerified')
+      .sort({ createdAt: -1 })
+      .limit(lim)
+      .lean();
+    return res.json({ success: true, shops });
+  } catch (err) {
+    console.error('List shops error', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // Create a shop (seller/admin)
 router.post(
   '/',
@@ -109,7 +128,8 @@ router.get('/my', auth(['seller', 'admin', 'superadmin']), async (req, res) => {
 // Get shop by slug (public)
 router.get('/:slug', async (req, res) => {
   try {
-    const shop = await Shop.findOne({ slug: req.params.slug });
+    const shop = await Shop.findOne({ slug: req.params.slug })
+      .populate('owner', 'username email profile.fullName profile.avatarUrl');
     if (!shop) return res.status(404).json({ success: false, message: 'Shop not found' });
     return res.json({ success: true, shop });
   } catch (err) {
@@ -160,6 +180,7 @@ router.put(
         }
       }
       if (req.body.businessHours !== undefined) updates.businessHours = req.body.businessHours;
+      if (req.body.since !== undefined) updates.since = req.body.since;
       if (req.body.metadata || req.body.icon3d || req.body.themeColor) {
         updates.metadata = {
           ...shop.metadata?.toObject?.() || shop.metadata || {},

@@ -1,285 +1,927 @@
-"use client";
+"use client"
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Box from '@mui/material/Box';
-import Paper from '@mui/material/Paper';
-import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
-import Select from '@mui/material/Select';
-import MenuItem from '@mui/material/MenuItem';
-import InputLabel from '@mui/material/InputLabel';
-import FormControl from '@mui/material/FormControl';
-import Chip from '@mui/material/Chip';
-import Typography from '@mui/material/Typography';
-import Divider from '@mui/material/Divider';
-import { DatePicker } from 'antd';
-import { useAppSelector } from '@/store';
-import { BrandsAPI, CategoriesAPI, TagsAPI, type BrandDTO, type CategoryDTO, type TagDTO } from '@/lib/api';
+import type React from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
+import dynamic from "next/dynamic"
+import {
+  Box,
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  Grid,
+  Card,
+  CardContent,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Chip,
+  Stack,
+  Alert,
+  IconButton,
+  Switch,
+  FormControlLabel,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Container,
+} from "@mui/material"
+import {
+  Add,
+  Delete,
+  CloudUpload,
+  ExpandMore,
+  Inventory,
+  AttachMoney,
+  Category,
+  LocalOffer,
+  Image,
+  Palette,
+  Description,
+} from "@mui/icons-material"
+import { DatePicker } from "@mui/x-date-pickers/DatePicker"
+import { LocalizationProvider } from "@mui/x-date-pickers"
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs"
+import dayjs from "dayjs"
+import ClassicEditor from "@ckeditor/ckeditor5-build-classic"
+import { CKEditor } from "@ckeditor/ckeditor5-react"
+import { CouponsAPI, ProductAPI, TaxesAPI, type CouponDTO, type TaxDTO } from "@/lib/api"
+import { useAppSelector, useAppDispatch } from "@/store"
+import { fetchMyShop } from "@/store/slice/shopSlice"
+import { fetchBrands } from "@/store/slice/brandSlice"
+import { fetchCategories } from "@/store/slice/categorySlice"
+import { fetchTags } from "@/store/slice/tagSlice"
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000/api/v1';
+const CURRENCIES = ["INR", "USD", "EUR", "GBP"]
+const PRODUCT_STATUS = ["draft", "active", "archived"]
+const DISCOUNT_TYPES = ["percent", "fixed"]
 
-export default function NewProductPage() {
-  const router = useRouter();
+// Data from Redux store
+// Brands, Categories, Tags are fetched per shop and selected from store
 
-  const brandsState = useAppSelector(s=>s.brands.items);
-  const categoriesState = useAppSelector(s=>s.categories.items);
-  const tagsState = useAppSelector(s=>s.tags.items);
+export default function EnhancedProductForm() {
+  const router = useRouter()
+  const shop = useAppSelector((s: any) => s.shop?.shop)
+  const shopId = shop?._id || shop?.id || shop?.shop?._id || ""
+  const dispatch = useAppDispatch()
+  const brands = useAppSelector((s: any) => s.brands?.items || [])
+  const categories = useAppSelector((s: any) => s.categories?.items || [])
+  const tags = useAppSelector((s: any) => s.tags?.items || [])
 
-  const [shopId, setShopId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
 
-  // form fields
-  const [title, setTitle] = useState('');
-  const [sku, setSku] = useState('');
-  const [price, setPrice] = useState<number>(0);
-  const [mrp, setMrp] = useState<number | ''>('');
-  const [currency, setCurrency] = useState('INR');
-  const [taxRate, setTaxRate] = useState<number | ''>('');
-  const [stock, setStock] = useState<number>(0);
-  const [description, setDescription] = useState('');
-  const [status, setStatus] = useState<'draft' | 'active' | 'archived'>('active');
-  const [brandId, setBrandId] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [tagIds, setTagIds] = useState<string[]>([]);
+  // Basic product fields
+  const [title, setTitle] = useState("")
+  const [sku, setSku] = useState("")
+  const [price, setPrice] = useState<number>(0)
+  const [mrp, setMrp] = useState<number | "">("")
+  const [currency, setCurrency] = useState("INR")
+  const [taxRate, setTaxRate] = useState<number | "">("")
+  const [stock, setStock] = useState<number>(0)
+  const [description, setDescription] = useState("")
+  const [status, setStatus] = useState<"draft" | "active" | "archived">("active")
+  const [brandId, setBrandId] = useState("")
+  const [categoryId, setCategoryId] = useState("")
+  const [tagIds, setTagIds] = useState<string[]>([])
+
+  // Enhanced fields for better e-commerce
+  const [weight, setWeight] = useState<number | "">("")
+  const [dimensions, setDimensions] = useState({
+    length: "",
+    width: "",
+    height: "",
+  })
+  const [color, setColor] = useState("")
+  const [size, setSize] = useState("")
+  const [material, setMaterial] = useState("")
+  const [warranty, setWarranty] = useState("")
+  const [returnPolicy, setReturnPolicy] = useState("")
+  const [shippingInfo, setShippingInfo] = useState("")
 
   // Images
-  const [mainFile, setMainFile] = useState<File | null>(null);
-  const [gallery, setGallery] = useState<File[]>([]);
+  const [mainFile, setMainFile] = useState<File | null>(null)
+  const [gallery, setGallery] = useState<File[]>([])
 
   // Variants
-  const [variants, setVariants] = useState<Array<{ sku?: string; price: number; stock?: number }>>([]);
-  const [variantFiles, setVariantFiles] = useState<Record<number, File[]>>({});
+  const [variants, setVariants] = useState<
+    Array<{
+      sku?: string
+      price: number
+      stock?: number
+      color?: string
+      size?: string
+    }>
+  >([])
 
   // Discount
-  const [applyDiscount, setApplyDiscount] = useState(false);
-  const [discountType, setDiscountType] = useState<'percent'|'fixed'>('percent');
-  const [discountValue, setDiscountValue] = useState<number | ''>('');
-  const [discountExpiry, setDiscountExpiry] = useState<any | null>(null);
-  const [usageLimit, setUsageLimit] = useState<number | ''>('');
+  const [applyDiscount, setApplyDiscount] = useState(false)
+  const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent")
+  const [discountValue, setDiscountValue] = useState<number | "">("")
+  const [discountExpiry, setDiscountExpiry] = useState<any | null>(null)
+  const [usageLimit, setUsageLimit] = useState<number | "">("")
 
-  const canSave = !!shopId && title.trim().length > 1 && price > 0 && !loading;
+  // Tax and Coupon
+  const [taxes, setTaxes] = useState<TaxDTO[]>([])
+  const [coupons, setCoupons] = useState<CouponDTO[]>([])
+  const [selectedCouponId, setSelectedCouponId] = useState<string>("")
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/shops/my`, { credentials: 'include' });
-        if (res.ok) {
-          const data = await res.json();
-          setShopId(data.shop?._id || null);
-        }
-      } catch {}
-    })();
-  }, []);
+  // Files and previews
+  const [mainPreview, setMainPreview] = useState<string | null>(null)
+  const [galleryPreviews, setGalleryPreviews] = useState<string[]>([])
 
-  function addVariant() {
-    setVariants(v=> [...v, { sku: '', price: 0, stock: 0 }]);
-  }
-  function updateVariant(i: number, patch: Partial<{ sku?: string; price: number; stock?: number }>) {
-    setVariants(v=> v.map((row, idx)=> idx===i ? { ...row, ...patch } : row));
-  }
-  function removeVariant(i: number) {
-    setVariants(v=> v.filter((_, idx)=> idx!==i));
-    setVariantFiles(prev=> {
-      const next = { ...prev };
-      delete next[i];
-      // reindex keys to keep mapping stable after removal
-      const reindexed: Record<number, File[]> = {};
-      const entries = Object.entries(next).sort((a,b)=> Number(a[0]) - Number(b[0]));
-      let k = 0;
-      for (const [, files] of entries) reindexed[k++] = files;
-      return reindexed;
-    });
-  }
-  function onVariantFiles(i: number, files: File[]) {
-    setVariantFiles(prev=> ({ ...prev, [i]: files }));
+  // Variant files and previews parallel to variants
+  const [variantFiles, setVariantFiles] = useState<(File[] | undefined)[]>([])
+  const [variantPreviews, setVariantPreviews] = useState<string[][]>([])
+
+  // Product type and dynamic attributes per category
+  const [productType, setProductType] = useState<string>("")
+  const [attributes, setAttributes] = useState<Record<string, any>>({})
+
+  const canSave = title.trim().length > 1 && price > 0 && !loading
+
+  const addVariant = () => {
+    setVariants((v) => [...v, { sku: "", price: 0, stock: 0, color: "", size: "" }])
+    setVariantFiles((vf) => [...vf, undefined])
+    setVariantPreviews((vp) => [...vp, []])
   }
 
-  async function onSubmit() {
-    if (!canSave) return;
-    setLoading(true);
+  const updateVariant = (i: number, patch: Partial<(typeof variants)[0]>) => {
+    setVariants((v) => v.map((row, idx) => (idx === i ? { ...row, ...patch } : row)))
+  }
+
+  const removeVariant = (i: number) => {
+    setVariants((v) => v.filter((_, idx) => idx !== i))
+    setVariantFiles((vf) => vf.filter((_, idx) => idx !== i))
+    setVariantPreviews((vp) => vp.filter((_, idx) => idx !== i))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canSave) return
+
+    setLoading(true)
+    setError(null)
+
     try {
-      const payload: any = {
+      const variantsPayload = variants.map((v) => ({
+        sku: v.sku || undefined,
+        price: v.price,
+        stock: v.stock ?? 0,
+        attributes: {
+          ...(v.color ? { color: v.color } : {}),
+          ...(v.size ? { size: v.size } : {}),
+        },
+      }))
+
+      const discount = applyDiscount && discountValue !== "" ? {
+        type: discountType,
+        value: Number(discountValue),
+        expiry: discountExpiry ? dayjs(discountExpiry).toISOString() : undefined,
+        usageLimit: usageLimit === "" ? undefined : Number(usageLimit),
+      } : undefined
+
+      const resp = await ProductAPI.createMultipart({
         shopId,
-        title: title.trim(),
-        sku: sku.trim() || undefined,
+        title,
+        sku,
+        description,
         price,
-        mrp: mrp === '' ? undefined : mrp,
+        mrp: mrp === "" ? undefined : Number(mrp),
         currency,
-        taxRate: taxRate === '' ? undefined : taxRate,
+        taxRate: taxRate === "" ? undefined : Number(taxRate),
         stock,
-        description: description.trim() || undefined,
-        status,
         brandId: brandId || undefined,
         categoryId: categoryId || undefined,
         tagIds: tagIds.length ? tagIds : undefined,
-        variants: variants.filter(v=> (v.price ?? 0) > 0).map(v=> ({ sku: v.sku, price: v.price, stock: v.stock })),
-        discount: applyDiscount ? {
-          type: discountType,
-          value: discountValue === '' ? 0 : discountValue,
-          expiry: discountExpiry ? discountExpiry.toDate() : undefined,
-          usageLimit: usageLimit === '' ? undefined : usageLimit,
-        } : undefined,
-      };
-
-      const fd = new FormData();
-      Object.entries(payload).forEach(([k, v]) => {
-        if (v === undefined || v === null) return;
-        if (Array.isArray(v) || typeof v === 'object') fd.append(k, JSON.stringify(v));
-        else fd.append(k, String(v));
-      });
-      if (mainFile) fd.append('file', mainFile);
-      for (const f of gallery) fd.append('file', f);
-      // append variant files, index-based keys variantFiles[<i>]
-      Object.entries(variantFiles).forEach(([idx, files])=> {
-        for (const f of files) fd.append(`variantFiles[${idx}]`, f);
-      });
-
-      const res = await fetch(`${API_BASE}/products`, { method: 'POST', body: fd, credentials: 'include' });
-      if (res.ok) {
-        router.push('/seller/products');
+        attributes: { ...attributes, productType },
+        variants: variantsPayload,
+        status,
+        mainFile,
+        galleryFiles: gallery,
+        variantFiles,
+        discount,
+      })
+      if (resp?.success) {
+        setSuccess("Product created successfully!")
+        setTimeout(() => router.push("/seller/products"), 1500)
+      } else {
+        setError("Failed to create product. Please try again.")
       }
-    } catch (e) {
-      console.error(e);
+    } catch (err: any) {
+      setError("Failed to create product. Please try again.")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   }
 
+  // Ensure we have current shop loaded; required to fetch shop-scoped taxes/coupons
+  useEffect(() => {
+    if (!shopId) {
+      dispatch(fetchMyShop())
+    }
+  }, [shopId, dispatch])
+
+  // Load brands, categories, tags when shop is available
+  useEffect(() => {
+    if (!shopId) return
+    dispatch(fetchBrands(shopId))
+    dispatch(fetchCategories(shopId))
+    dispatch(fetchTags(shopId))
+  }, [shopId, dispatch])
+
+  // Load taxes and coupons for current shop
+  useEffect(() => {
+    if (!shopId) return
+    ;(async () => {
+      try {
+        const [t, c] = await Promise.all([
+          TaxesAPI.list(shopId),
+          CouponsAPI.list(shopId),
+        ])
+        setTaxes(t.taxes || [])
+        setCoupons(c.coupons || [])
+      } catch (e) {
+        console.warn("Failed to load taxes/coupons", e)
+      }
+    })()
+  }, [shopId])
+
+  // Coupon mapping: when user selects a coupon, apply to discount UI
+  useEffect(() => {
+    const coupon = coupons.find((x) => x._id === selectedCouponId)
+    if (coupon) {
+      setApplyDiscount(true)
+      setDiscountType(coupon.type)
+      setDiscountValue(coupon.value)
+      setDiscountExpiry(coupon.expiry ? dayjs(coupon.expiry) : null)
+      setUsageLimit(coupon.usageLimit ?? "")
+    }
+  }, [selectedCouponId, coupons])
+
+  // Previews for main and gallery
+  useEffect(() => {
+    if (mainFile) setMainPreview(URL.createObjectURL(mainFile))
+    else setMainPreview(null)
+    return () => { if (mainPreview) URL.revokeObjectURL(mainPreview) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainFile])
+  useEffect(() => {
+    const urls = gallery.map((f) => URL.createObjectURL(f))
+    setGalleryPreviews(urls)
+    return () => { urls.forEach((u) => URL.revokeObjectURL(u)) }
+  }, [gallery])
+
+  const handleVariantFiles = (i: number, files: FileList | null) => {
+    const arr = files ? Array.from(files) : []
+    setVariantFiles((prev) => {
+      const next = [...prev]
+      next[i] = arr
+      return next
+    })
+    const urls = arr.map((f) => URL.createObjectURL(f))
+    setVariantPreviews((prev) => {
+      const next = [...prev]
+      next[i] = urls
+      return next
+    })
+  }
+
   return (
-    <Box sx={{ p: { xs: 2, md: 4 } }}>
-      <Paper sx={{ maxWidth: 1200, mx: 'auto', p: 3, borderRadius: 3, border: '1px solid #dbeafe' }}>
-        <Typography variant="h5" sx={{ mb: 2, fontWeight: 700 }}>Create Product</Typography>
-        <Divider sx={{ mb: 3 }} />
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2 }}>
-          <Box>
-            <Stack spacing={2}>
-              <TextField label="Title" value={title} onChange={(e)=>setTitle(e.target.value)} autoFocus required sx={{ bgcolor: 'white' }}/>
-              <TextField label="SKU (optional)" value={sku} onChange={(e)=>setSku(e.target.value)} sx={{ bgcolor: 'white' }}/>
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                <TextField label="Price" type="number" value={price} onChange={(e)=>setPrice(Number(e.target.value))} required sx={{ flex: 1, bgcolor: 'white' }}/>
-                <TextField label="MRP (optional)" type="number" value={mrp} onChange={(e)=>setMrp(e.target.value === '' ? '' : Number(e.target.value))} sx={{ flex: 1, bgcolor: 'white' }}/>
-              </Stack>
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                <TextField label="Currency" value={currency} onChange={(e)=>setCurrency(e.target.value)} sx={{ flex: 1, bgcolor: 'white' }}/>
-                <TextField label="Tax Rate (%)" type="number" value={taxRate} onChange={(e)=>setTaxRate(e.target.value === '' ? '' : Number(e.target.value))} sx={{ flex: 1, bgcolor: 'white' }}/>
-                <TextField label="Stock" type="number" value={stock} onChange={(e)=>setStock(Number(e.target.value))} sx={{ flex: 1, bgcolor: 'white' }}/>
-              </Stack>
-              <TextField label="Description" value={description} onChange={(e)=>setDescription(e.target.value)} multiline minRows={4} sx={{ bgcolor: 'white' }}/>
-
-              <FormControl fullWidth>
-                <InputLabel id="status-label">Status</InputLabel>
-                <Select labelId="status-label" label="Status" value={status} onChange={(e)=> setStatus(e.target.value as any)}>
-                  <MenuItem value="draft">Draft</MenuItem>
-                  <MenuItem value="active">Active</MenuItem>
-                  <MenuItem value="archived">Archived</MenuItem>
-                </Select>
-              </FormControl>
-
-              <FormControl fullWidth>
-                <InputLabel id="brand-label">Brand</InputLabel>
-                <Select labelId="brand-label" label="Brand" value={brandId} onChange={(e)=> setBrandId(e.target.value as string)}>
-                  <MenuItem value=""><em>None</em></MenuItem>
-                  {brandsState.map(b=> <MenuItem key={b._id} value={String(b._id)}>{b.name}</MenuItem>)}
-                </Select>
-              </FormControl>
-
-              <FormControl fullWidth>
-                <InputLabel id="category-label">Category</InputLabel>
-                <Select labelId="category-label" label="Category" value={categoryId} onChange={(e)=> setCategoryId(e.target.value as string)}>
-                  <MenuItem value=""><em>None</em></MenuItem>
-                  {categoriesState.map(c=> <MenuItem key={c._id} value={String(c._id)}>{c.name}</MenuItem>)}
-                </Select>
-              </FormControl>
-
-              <FormControl fullWidth>
-                <InputLabel id="tags-label">Tags</InputLabel>
-                <Select multiple labelId="tags-label" label="Tags" value={tagIds} onChange={(e)=> setTagIds(typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value as string[])} renderValue={(selected)=> (
-                  <Stack direction="row" spacing={1} flexWrap="wrap">{(selected as string[]).map(id=> {
-                    const t = tagsState.find(x=> String(x._id)===String(id));
-                    return <Chip key={id} size="small" label={t?.name || id} />
-                  })}</Stack>
-                )}>
-                  {tagsState.map(t=> <MenuItem key={t._id} value={String(t._id)}>{t.name}</MenuItem>)}
-                </Select>
-              </FormControl>
-
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <Box
+        sx={{
+          minHeight: "100vh",
+          backgroundColor: "#f8f9fa",
+          py: 4,
+        }}
+      >
+        <Container maxWidth="xl">
+          <Paper
+            elevation={0}
+            sx={{
+              p: 4,
+              borderRadius: 3,
+              border: "1px solid",
+              borderColor: "divider",
+              backgroundColor: "background.paper",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+            }}
+          >
+            {/* Header */}
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
               <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Images</Typography>
-                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
-                  <Button component="label" variant="outlined">Upload Main Image
-                    <input hidden type="file" accept="image/*" onChange={(e)=> setMainFile((e.target.files && e.target.files[0]) || null)} />
-                  </Button>
-                  {mainFile && <Chip label={mainFile.name} />}
-                  <Button component="label" variant="outlined">Upload Gallery Images
-                    <input hidden type="file" accept="image/*" multiple onChange={(e)=> setGallery(Array.from(e.target.files || []))} />
-                  </Button>
-                  {gallery.length>0 && (
-                    <Stack direction="row" spacing={1} flexWrap="wrap">{gallery.map((f,i)=>(<Chip key={i} label={f.name}/>))}</Stack>
-                  )}
-                </Stack>
+                <Typography variant="h4" fontWeight="bold" color="text.primary" gutterBottom>
+                  Create New Product
+                </Typography>
+                <Typography variant="body1" color="text.secondary">
+                  Add a new product to your inventory
+                </Typography>
               </Box>
+              <Button
+                variant="contained"
+                onClick={handleSubmit}
+                disabled={!canSave}
+                sx={{
+                  px: 4,
+                  py: 1.5,
+                  backgroundColor: "primary.main",
+                  fontWeight: "bold",
+                }}
+              >
+                {loading ? "Creating..." : "Create Product"}
+              </Button>
+            </Box>
 
-              <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Variants</Typography>
-                <Stack spacing={1}>
-                  {variants.map((v,i)=> (
-                    <Stack key={i} direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems="center">
-                      <TextField size="small" label="SKU" value={v.sku || ''} onChange={(e)=>updateVariant(i, { sku: e.target.value })} sx={{ minWidth: 160 }}/>
-                      <TextField size="small" label="Price" type="number" value={v.price} onChange={(e)=>updateVariant(i, { price: Number(e.target.value) })} sx={{ minWidth: 140 }}/>
-                      <TextField size="small" label="Stock" type="number" value={v.stock ?? 0} onChange={(e)=>updateVariant(i, { stock: Number(e.target.value) })} sx={{ minWidth: 120 }}/>
-                      <Button component="label" size="small" variant="outlined">Upload Variant Images
-                        <input hidden type="file" accept="image/*" multiple onChange={(e)=> onVariantFiles(i, Array.from(e.target.files || []))} />
-                      </Button>
-                      {variantFiles[i]?.length ? <Chip size="small" label={`${variantFiles[i].length} files`} /> : null}
-                      <Button size="small" color="error" onClick={()=>removeVariant(i)}>Remove</Button>
-                    </Stack>
-                  ))}
-                  <Button variant="outlined" size="small" onClick={addVariant}>Add Variant</Button>
-                </Stack>
+            {/* Alerts */}
+            {error && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                {error}
+              </Alert>
+            )}
+            {success && (
+              <Alert severity="success" sx={{ mb: 3 }}>
+                {success}
+              </Alert>
+            )}
+
+            <Box component="form" onSubmit={handleSubmit}>
+              <Grid container spacing={4}>
+                {/* Left Column - Basic Information */}
+                <Grid item xs={12} lg={8}>
+                  <Stack spacing={4}>
+                    {/* Basic Details */}
+                    <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Description color="primary" />
+                          Basic Information
+                        </Typography>
+                        <Grid container spacing={3}>
+                          <Grid item xs={12}>
+                            <TextField
+                              fullWidth
+                              label="Product Title"
+                              value={title}
+                              onChange={(e) => setTitle(e.target.value)}
+                              required
+                              placeholder="Enter product title"
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="SKU (Optional)"
+                              value={sku}
+                              onChange={(e) => setSku(e.target.value)}
+                              placeholder="Product SKU"
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <FormControl fullWidth>
+                              <InputLabel>Status</InputLabel>
+                              <Select value={status} label="Status" onChange={(e) => setStatus(e.target.value as any)}>
+                                {PRODUCT_STATUS.map((s) => (
+                                  <MenuItem key={s} value={s}>
+                                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                          <Grid item xs={12}>
+                            <Typography variant="subtitle1" gutterBottom>
+                              Description
+                            </Typography>
+                            <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1, p: 1 }}>
+                              <CKEditor
+                                editor={ClassicEditor as any}
+                                data={description}
+                                onChange={(_evt: any, editor: any) => {
+                                  const data = editor.getData?.() || ""
+                                  setDescription(data)
+                                }}
+                              />
+                            </Box>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
+
+                    {/* Pricing & Inventory */}
+                    <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <AttachMoney color="primary" />
+                          Pricing & Inventory
+                        </Typography>
+                        <Grid container spacing={3}>
+                          <Grid item xs={12} md={4}>
+                            <TextField
+                              fullWidth
+                              label="Price"
+                              type="number"
+                              value={price}
+                              onChange={(e) => setPrice(Number(e.target.value))}
+                              required
+                              InputProps={{
+                                startAdornment: currency === "INR" ? "₹" : "$",
+                              }}
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={4}>
+                            <TextField
+                              fullWidth
+                              label="MRP (Optional)"
+                              type="number"
+                              value={mrp}
+                              onChange={(e) => setMrp(e.target.value === "" ? "" : Number(e.target.value))}
+                              InputProps={{
+                                startAdornment: currency === "INR" ? "₹" : "$",
+                              }}
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={4}>
+                            <FormControl fullWidth>
+                              <InputLabel>Currency</InputLabel>
+                              <Select value={currency} label="Currency" onChange={(e) => setCurrency(e.target.value)}>
+                                {CURRENCIES.map((c) => (
+                                  <MenuItem key={c} value={c}>
+                                    {c}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="Stock Quantity"
+                              type="number"
+                              value={stock}
+                              onChange={(e) => setStock(Number(e.target.value))}
+                              InputProps={{
+                                startAdornment: <Inventory color="action" />,
+                              }}
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="Tax Rate (%)"
+                              type="number"
+                              value={taxRate}
+                              onChange={(e) => setTaxRate(e.target.value === "" ? "" : Number(e.target.value))}
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <FormControl fullWidth>
+                              <InputLabel>Tax</InputLabel>
+                              <Select
+                                value={taxRate === "" ? "" : String(taxRate)}
+                                label="Tax"
+                                onChange={(e) => setTaxRate(e.target.value === "" ? "" : Number(e.target.value))}
+                              >
+                                <MenuItem value=""><em>None</em></MenuItem>
+                                {taxes.map((t) => (
+                                  <MenuItem key={t._id} value={String(t.percent)}>
+                                    {t.name} — {t.percent}%
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
+
+                    {/* Product Details */}
+                    <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Palette color="primary" />
+                          Product Details
+                        </Typography>
+                        <Grid container spacing={3}>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="Color"
+                              value={color}
+                              onChange={(e) => setColor(e.target.value)}
+                              placeholder="e.g., Red, Blue, Black"
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="Size"
+                              value={size}
+                              onChange={(e) => setSize(e.target.value)}
+                              placeholder="e.g., S, M, L, XL"
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="Material"
+                              value={material}
+                              onChange={(e) => setMaterial(e.target.value)}
+                              placeholder="e.g., Cotton, Polyester"
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="Weight (kg)"
+                              type="number"
+                              value={weight}
+                              onChange={(e) => setWeight(e.target.value === "" ? "" : Number(e.target.value))}
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={4}>
+                            <TextField
+                              fullWidth
+                              label="Length (cm)"
+                              value={dimensions.length}
+                              onChange={(e) => setDimensions((prev) => ({ ...prev, length: e.target.value }))}
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={4}>
+                            <TextField
+                              fullWidth
+                              label="Width (cm)"
+                              value={dimensions.width}
+                              onChange={(e) => setDimensions((prev) => ({ ...prev, width: e.target.value }))}
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={4}>
+                            <TextField
+                              fullWidth
+                              label="Height (cm)"
+                              value={dimensions.height}
+                              onChange={(e) => setDimensions((prev) => ({ ...prev, height: e.target.value }))}
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="Warranty"
+                              value={warranty}
+                              onChange={(e) => setWarranty(e.target.value)}
+                              placeholder="e.g., 1 year manufacturer warranty"
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="Return Policy"
+                              value={returnPolicy}
+                              onChange={(e) => setReturnPolicy(e.target.value)}
+                              placeholder="e.g., 30 days return policy"
+                            />
+                          </Grid>
+                          <Grid item xs={12}>
+                            <TextField
+                              fullWidth
+                              label="Shipping Information"
+                              value={shippingInfo}
+                              onChange={(e) => setShippingInfo(e.target.value)}
+                              placeholder="Special shipping instructions..."
+                            />
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
+
+                    {/* Product Variants */}
+                    <Accordion elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                      <AccordionSummary expandIcon={<ExpandMore />}>
+                        <Typography variant="h6" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Category color="primary" />
+                          Product Variants ({variants.length})
+                        </Typography>
+                      </AccordionSummary>
+                      <AccordionDetails>
+                        <Stack spacing={2}>
+                          {variants.map((variant, i) => (
+                            <Card key={i} variant="outlined">
+                              <CardContent>
+                                <Grid container spacing={2} alignItems="center">
+                                  <Grid item xs={12} md={2}>
+                                    <TextField
+                                      fullWidth
+                                      size="small"
+                                      label="SKU"
+                                      value={variant.sku || ""}
+                                      onChange={(e) => updateVariant(i, { sku: e.target.value })}
+                                    />
+                                  </Grid>
+                                  <Grid item xs={12} md={2}>
+                                    <TextField
+                                      fullWidth
+                                      size="small"
+                                      label="Price"
+                                      type="number"
+                                      value={variant.price}
+                                      onChange={(e) => updateVariant(i, { price: Number(e.target.value) })}
+                                    />
+                                  </Grid>
+                                  <Grid item xs={12} md={2}>
+                                    <TextField
+                                      fullWidth
+                                      size="small"
+                                      label="Stock"
+                                      type="number"
+                                      value={variant.stock ?? 0}
+                                      onChange={(e) => updateVariant(i, { stock: Number(e.target.value) })}
+                                    />
+                                  </Grid>
+                                  <Grid item xs={12} md={2}>
+                                    <TextField
+                                      fullWidth
+                                      size="small"
+                                      label="Color"
+                                      value={variant.color || ""}
+                                      onChange={(e) => updateVariant(i, { color: e.target.value })}
+                                    />
+                                  </Grid>
+                                  <Grid item xs={12} md={2}>
+                                    <TextField
+                                      fullWidth
+                                      size="small"
+                                      label="Size"
+                                      value={variant.size || ""}
+                                      onChange={(e) => updateVariant(i, { size: e.target.value })}
+                                    />
+                                  </Grid>
+                                  <Grid item xs={12} md={2}>
+                                    <IconButton color="error" onClick={() => removeVariant(i)}>
+                                      <Delete />
+                                    </IconButton>
+                                  </Grid>
+                                  <Grid item xs={12}>
+                                    <Button component="label" variant="outlined" startIcon={<CloudUpload />} size="small">
+                                      Upload Variant Images
+                                      <input
+                                        hidden
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={(e) => handleVariantFiles(i, e.target.files)}
+                                      />
+                                    </Button>
+                                    {variantPreviews[i] && variantPreviews[i].length > 0 && (
+                                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1 }}>
+                                        {variantPreviews[i].map((src, idx) => (
+                                          <img key={idx} src={src} alt={`Var ${i + 1}-${idx + 1}`} style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6 }} />
+                                        ))}
+                                      </Box>
+                                    )}
+                                  </Grid>
+                                </Grid>
+                              </CardContent>
+                            </Card>
+                          ))}
+                          <Button
+                            variant="outlined"
+                            startIcon={<Add />}
+                            onClick={addVariant}
+                            sx={{ alignSelf: "flex-start" }}
+                          >
+                            Add Variant
+                          </Button>
+                        </Stack>
+                      </AccordionDetails>
+                    </Accordion>
+                  </Stack>
+                </Grid>
+
+                {/* Right Column - Categories, Images, Discount */}
+                <Grid item xs={12} lg={4}>
+                  <Stack spacing={4}>
+                    {/* Categories & Tags */}
+                    <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <LocalOffer color="primary" />
+                          Categories & Tags
+                        </Typography>
+                        <Stack spacing={3}>
+                          <FormControl fullWidth>
+                            <InputLabel>Brand</InputLabel>
+                            <Select value={brandId} label="Brand" onChange={(e) => setBrandId(e.target.value)}>
+                              <MenuItem value="">
+                                <em>None</em>
+                              </MenuItem>
+                              {brands.map((b: any) => (
+                                <MenuItem key={b._id} value={b._id}>
+                                  {b.name}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+
+                          <FormControl fullWidth>
+                            <InputLabel>Category</InputLabel>
+                            <Select value={categoryId} label="Category" onChange={(e) => setCategoryId(e.target.value)}>
+                              <MenuItem value="">
+                                <em>None</em>
+                              </MenuItem>
+                              {categories.map((c: any) => (
+                                <MenuItem key={c._id} value={c._id}>
+                                  {c.name}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+
+                          <FormControl fullWidth>
+                            <InputLabel>Tags</InputLabel>
+                            <Select
+                              multiple
+                              value={tagIds}
+                              label="Tags"
+                              onChange={(e) =>
+                                setTagIds(
+                                  typeof e.target.value === "string"
+                                    ? e.target.value.split(",")
+                                    : (e.target.value as string[]),
+                                )
+                              }
+                              renderValue={(selected) => (
+                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                  {(selected as string[]).map((id) => {
+                                    const tag = tags.find((t: any) => t._id === id)
+                                    return <Chip key={id} label={tag?.name || id} size="small" />
+                                  })}
+                                </Box>
+                              )}
+                            >
+                              {tags.map((t: any) => (
+                                <MenuItem key={t._id} value={t._id}>
+                                  {t.name}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+
+                    {/* Images */}
+                    <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Image color="primary" />
+                          Product Images
+                        </Typography>
+                        <Stack spacing={2}>
+                          <Button component="label" variant="outlined" startIcon={<CloudUpload />} fullWidth>
+                            Upload Main Image
+                            <input
+                              hidden
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => setMainFile(e.target.files?.[0] || null)}
+                            />
+                          </Button>
+                          {mainFile && (
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                              <img src={mainPreview || ""} alt="Main" style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 8 }} />
+                              <Chip label={mainFile.name} onDelete={() => setMainFile(null)} color="primary" variant="outlined" />
+                            </Box>
+                          )}
+
+                          <Button component="label" variant="outlined" startIcon={<CloudUpload />} fullWidth>
+                            Upload Gallery Images
+                            <input
+                              hidden
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={(e) => setGallery(Array.from(e.target.files || []))}
+                            />
+                          </Button>
+                          {gallery.length > 0 && (
+                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                              {galleryPreviews.map((src, i) => (
+                                <img key={i} src={src} alt={`Gallery ${i + 1}`} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6 }} />
+                              ))}
+                            </Box>
+                          )}
+                        </Stack>
+                      </CardContent>
+                    </Card>
+
+                    {/* Discount */}
+                    <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom>
+                          Discount Settings
+                        </Typography>
+                        <Stack spacing={2}>
+                          <FormControlLabel
+                            control={
+                              <Switch checked={applyDiscount} onChange={(e) => setApplyDiscount(e.target.checked)} />
+                            }
+                            label="Apply Discount"
+                          />
+
+                          {applyDiscount && (
+                            <>
+                              <FormControl fullWidth>
+                                <InputLabel>Discount Type</InputLabel>
+                                <Select
+                                  value={discountType}
+                                  label="Discount Type"
+                                  onChange={(e) => setDiscountType(e.target.value as any)}
+                                >
+                                  <MenuItem value="percent">Percentage</MenuItem>
+                                  <MenuItem value="fixed">Fixed Amount</MenuItem>
+                                </Select>
+                              </FormControl>
+
+                              <TextField
+                                fullWidth
+                                label={discountType === "percent" ? "Discount (%)" : "Discount Amount"}
+                                type="number"
+                                value={discountValue}
+                                onChange={(e) => setDiscountValue(e.target.value === "" ? "" : Number(e.target.value))}
+                              />
+
+                              <TextField
+                                fullWidth
+                                label="Usage Limit"
+                                type="number"
+                                value={usageLimit}
+                                onChange={(e) => setUsageLimit(e.target.value === "" ? "" : Number(e.target.value))}
+                                placeholder="Leave empty for unlimited"
+                              />
+
+                              <DatePicker
+                                label="Expiry Date"
+                                value={discountExpiry}
+                                onChange={(date) => setDiscountExpiry(date)}
+                                minDate={dayjs()}
+                                slotProps={{
+                                  textField: {
+                                    fullWidth: true,
+                                    placeholder: "Select expiry date",
+                                  },
+                                }}
+                              />
+                            </>
+                          )}
+
+                          {/* Coupon quick apply */}
+                          <FormControl fullWidth>
+                            <InputLabel>Apply Coupon</InputLabel>
+                            <Select
+                              value={selectedCouponId}
+                              label="Apply Coupon"
+                              onChange={(e) => setSelectedCouponId(e.target.value)}
+                            >
+                              <MenuItem value=""><em>None</em></MenuItem>
+                              {coupons.map((c) => (
+                                <MenuItem key={c._id} value={c._id!}>
+                                  {c.code} — {c.type === "percent" ? `${c.value}%` : `₹${c.value}`}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Stack>
+                </Grid>
+              </Grid>
+
+              {/* Action Buttons */}
+              <Box display="flex" justifyContent="flex-end" gap={2} mt={4}>
+                <Button variant="outlined" onClick={() => router.back()} disabled={loading}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={!canSave}
+                  sx={{
+                    px: 4,
+                    backgroundColor: "primary.main",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {loading ? "Creating..." : "Create Product"}
+                </Button>
               </Box>
-            </Stack>
-          </Box>
-
-          <Box>
-            <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>Discount</Typography>
-              <Stack spacing={2}>
-                <FormControl fullWidth>
-                  <InputLabel id="apply-discount">Apply</InputLabel>
-                  <Select labelId="apply-discount" label="Apply" value={applyDiscount ? 'yes' : 'no'} onChange={(e)=> setApplyDiscount((e.target.value as string) === 'yes')}>
-                    <MenuItem value="no">No</MenuItem>
-                    <MenuItem value="yes">Yes</MenuItem>
-                  </Select>
-                </FormControl>
-                {applyDiscount && (
-                  <>
-                    <FormControl fullWidth>
-                      <InputLabel id="discount-type">Type</InputLabel>
-                      <Select labelId="discount-type" label="Type" value={discountType} onChange={(e)=> setDiscountType(e.target.value as any)}>
-                        <MenuItem value="percent">Percent</MenuItem>
-                        <MenuItem value="fixed">Fixed Amount</MenuItem>
-                      </Select>
-                    </FormControl>
-                    <TextField label={discountType==='percent' ? 'Percent (%)' : 'Amount'} type="number" value={discountValue} onChange={(e)=> setDiscountValue(e.target.value === '' ? '' : Number(e.target.value))} sx={{ bgcolor: 'white' }} />
-                    <TextField label="Usage Limit (optional)" type="number" value={usageLimit} onChange={(e)=> setUsageLimit(e.target.value === '' ? '' : Number(e.target.value))} sx={{ bgcolor: 'white' }} />
-                    <Box>
-                      <Typography variant="body2" sx={{ mb: 0.5 }}>Expiry (optional)</Typography>
-                      <DatePicker style={{ width: '100%' }} value={discountExpiry} onChange={(d)=> setDiscountExpiry(d)} disabledDate={(d)=> Boolean(d && d.isBefore && d.isBefore((window as any).dayjs ? (window as any).dayjs().startOf('day') : undefined))} />
-                    </Box>
-                  </>
-                )}
-                <Divider sx={{ my: 1 }} />
-                <Stack direction="row" spacing={1}>
-                  <Button variant="outlined" onClick={()=>router.back()}>Cancel</Button>
-                  <Button variant="contained" onClick={onSubmit} disabled={!canSave}>Create</Button>
-                </Stack>
-              </Stack>
-            </Paper>
-          </Box>
-        </Box>
-      </Paper>
-    </Box>
-  );
+            </Box>
+          </Paper>
+        </Container>
+      </Box>
+    </LocalizationProvider>
+  )
 }

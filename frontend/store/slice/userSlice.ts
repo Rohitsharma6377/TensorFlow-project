@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
-import { UsersAPI, type User, type AddressDTO, type UpdateUserPayload } from '@/lib/api'
+import { UsersAPI, AuthAPI, type User, type AddressDTO, type UpdateUserPayload } from '@/lib/api'
 
 export interface UserState {
   user: User | null
@@ -19,6 +19,11 @@ export const updateProfileThunk = createAsyncThunk(
     return res
   }
 )
+
+export const fetchMeThunk = createAsyncThunk('user/fetchMe', async () => {
+  const res = await AuthAPI.getCurrentUser()
+  return res.user
+})
 
 export const addAddressThunk = createAsyncThunk(
   'user/addAddress',
@@ -54,6 +59,18 @@ const slice = createSlice({
   },
   extraReducers(builder) {
     builder
+      .addCase(fetchMeThunk.pending, (s) => {
+        s.status = 'loading'
+        s.error = undefined
+      })
+      .addCase(fetchMeThunk.fulfilled, (s, a) => {
+        s.status = 'idle'
+        s.user = a.payload
+      })
+      .addCase(fetchMeThunk.rejected, (s, a) => {
+        s.status = 'error'
+        s.error = a.error.message
+      })
       .addCase(updateProfileThunk.pending, (s) => {
         s.status = 'loading'
         s.error = undefined

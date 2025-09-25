@@ -6,6 +6,15 @@ const User = require('../models/User');
 
 const router = express.Router();
 
+// Update current user's profile
+router.put('/me', auth(), asyncHandler(async (req, res) => {
+  const updates = (({ profilePic, profile, walletBalance }) => ({ profilePic, profile, walletBalance }))(req.body || {});
+  Object.keys(updates).forEach((k)=> updates[k] === undefined && delete updates[k]);
+  const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true }).select('-passwordHash');
+  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+  res.json({ success: true, user });
+}));
+
 // Update profile (owner only)
 router.put('/:id', auth(), [param('id').isString()], asyncHandler(async (req, res) => {
   if (req.user.id !== req.params.id && !['admin','superadmin'].includes(req.user.role)) {

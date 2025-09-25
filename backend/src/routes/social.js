@@ -17,4 +17,11 @@ router.delete('/follow/:shopId', auth(), async (req, res) => {
   res.json({ success: true });
 });
 
+// List shops the current user follows
+router.get('/following', auth(), async (req, res) => {
+  const docs = await Follow.find({ follower: req.user.id }).select('shop').lean();
+  const shopIds = docs.map(d => String(d.shop));
+  res.json({ success: true, shops: shopIds });
+});
+
 module.exports = router;

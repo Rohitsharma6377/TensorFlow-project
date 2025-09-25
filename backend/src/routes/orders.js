@@ -41,3 +41,65 @@ router.get('/:id', auth(), async (req, res) => {
 });
 
 module.exports = router;
+
+// Seller analytics: totals
+router.get('/seller/stats', auth(['seller','admin','superadmin']), async (req, res) => {
+  try {
+    const { shop, sinceHours = 720 } = req.query; // default last 30 days
+    if (!shop) return res.status(400).json({ success: false, message: 'shop is required' });
+    const since = new Date(Date.now() - Number(sinceHours) * 3600 * 1000);
+    const pipeline = [
+      { $match: { createdAt: { $gte: since } } },
+      { $unwind: '$items' },
+      { $match: { 'items.shop': shop } },
+      { $group: {
+          _id: null,
+          orders: { $addToSet: '$_id' },
+          itemsCount: { $sum: { $ifNull: ['$items.qty', 1] } },
+          revenue: { $sum: { $multiply: [ { $ifNull: ['$items.price', 0] }, { $ifNull: ['$items.qty', 1] } ] } },
+          delivered: { $sum: { $cond: [{ $eq: ['$items.status', 'delivered'] }, 1, 0] } },
+        }
+      },
+      { $project: { _id: 0, totalOrders: { $size: '$orders' }, totalItems: '$itemsCount', revenue: 1, delivered: 1 } }
+    ];
+    const agg = await Order.aggregate(pipeline);
+    const stats = agg[0] || { totalOrders: 0, totalItems: 0, revenue: 0, delivered: 0 };
+    res.json({ success: true, stats });
+  } catch (err) {
+    console.error('seller stats error', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Seller analytics: time series (zig-zag chart data)
+router.get('/seller/series', auth(['seller','admin','superadmin']), async (req, res) => {
+  try {
+    const { shop, windowHours = 24, intervalMinutes = 60 } = req.query;
+    if (!shop) return res.status(400).json({ success: false, message: 'shop is required' });
+    const since = new Date(Date.now() - Number(windowHours) * 3600 * 1000);
+
+    // Group by interval bucket
+    const bucketMs = Number(intervalMinutes) * 60 * 1000;
+    const pipeline = [
+      { $match: { createdAt: { $gte: since } } },
+      { $unwind: '$items' },
+      { $match: { 'items.shop': shop } },
+      { $project: {
+          ts: {
+            $toDate: { $subtract: [ { $toLong: '$createdAt' }, { $mod: [ { $toLong: '$createdAt' }, bucketMs ] } ] }
+          },
+          revenue: { $multiply: [ { $ifNull: ['$items.price', 0] }, { $ifNull: ['$items.qty', 1] } ] },
+          one: 1,
+        }
+      },
+      { $group: { _id: '$ts', orders: { $sum: '$one' }, revenue: { $sum: '$revenue' } } },
+      { $project: { _id: 0, t: '$_id', orders: 1, revenue: 1 } },
+      { $sort: { t: 1 } }
+    ];
+    const points = await Order.aggregate(pipeline);
+    res.json({ success: true, points });
+  } catch (err) {
+    console.error('seller series error', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});

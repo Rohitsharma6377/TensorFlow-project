@@ -23,7 +23,7 @@ export function FeedLayout() {
       </aside>
 
       {/* Main wrapper offset by the fixed sidebar width on large screens */}
-      <div className="relative lg:pl-[360px]">
+      <div className="relative">
         {/* Main Content Area (independent scroll on large screens) */}
         <main className="w-full lg:h-screen lg:overflow-y-auto">
           {/* Stories Section - Sticky and flush under header */}

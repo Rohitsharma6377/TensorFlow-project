@@ -74,6 +74,8 @@ const ShopSchema = new mongoose.Schema(
       type: String,
       maxlength: [1000, 'Description cannot be more than 1000 characters']
     },
+    // Business since (established year)
+    since: { type: Number },
     logo: {
       url: String,
       publicId: String

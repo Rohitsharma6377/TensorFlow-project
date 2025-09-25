@@ -9,6 +9,12 @@ async function attachUploads(req, res, next) {
   try {
     const urls = [];
     const byField = {};
+    if (process.env.NODE_ENV !== 'test') {
+      const info = Array.isArray(req.files)
+        ? req.files.map(f => ({ field: f.fieldname, name: f.originalname, size: f.size }))
+        : (req.file ? [{ field: req.file.fieldname, name: req.file.originalname, size: req.file.size }] : []);
+      console.log('[uploadAttach] incoming files:', info);
+    }
     if (req.files && Array.isArray(req.files)) {
       for (const f of req.files) {
         const result = await uploadFile({ buffer: f.buffer, originalname: f.originalname, folder: req.body.folder || 'uploads' });
@@ -25,8 +31,13 @@ async function attachUploads(req, res, next) {
     }
     req.uploadedUrls = urls;
     req.uploadedByField = byField;
+    if (process.env.NODE_ENV !== 'test') {
+      console.log('[uploadAttach] uploaded urls:', urls);
+      console.log('[uploadAttach] uploaded by field:', byField);
+    }
     next();
   } catch (err) {
+    console.error('[uploadAttach] error:', err);
     next(err);
   }
 }

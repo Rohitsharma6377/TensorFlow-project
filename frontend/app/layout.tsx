@@ -4,6 +4,9 @@ import { NextUIProvider } from "@nextui-org/react";
 import { Inter } from 'next/font/google'
 import { Navbar } from '@/components/navbar'
 import Providers from './providers'
+import ConditionalLeftSidebar from '@/components/layout/ConditionalLeftSidebar'
+import MainContainer from '@/components/layout/MainContainer'
+import Toaster from '@/components/ui/Toaster'
 import InitAuth from './init-auth'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -42,11 +45,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <InitAuth />
             <div className="flex flex-col">
               <Navbar />
-              <main className="flex-1 min-h-screen overflow-y-auto">
+
+              {/* Universal Left Sidebar (hidden on auth routes) */}
+              <ConditionalLeftSidebar />
+
+              {/* Main content with conditional sidebar padding */}
+              <MainContainer>
                 {children}
-              </main>
+              </MainContainer>
             </div>
           </Providers>
+          {/* Global toast notifications */}
+          <Toaster />
         </NextUIProvider>
       </body>
     </html>
