@@ -76,7 +76,7 @@ function auth(allowedRoles = [], options = {}) {
             const user = await User.findById(session.user).select('-passwordHash');
             if (!user) return res.status(401).json({ success: false, message: 'User not found' });
             req.user = {
-              id: user._id,
+              id: String(user._id),
               username: user.username,
               email: user.email,
               role: user.role,
@@ -146,7 +146,7 @@ function auth(allowedRoles = [], options = {}) {
 
       // Attach user to request object
       req.user = {
-        id: user._id,
+        id: String(user._id),
         username: user.username,
         email: user.email,
         role: user.role,

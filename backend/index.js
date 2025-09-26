@@ -16,7 +16,6 @@ const client = require('prom-client');
 require('dotenv').config();
 
 const connectDB = require('./src/config/db');
-
 // Routes
 const healthRouter = require('./src/routes/health');
 const authRouter = require('./src/routes/auth');
@@ -33,8 +32,6 @@ const reelsRouter = require('./src/routes/reels');
 const socialRouter = require('./src/routes/social');
 const ordersRouter = require('./src/routes/orders');
 const shipmentsRouter = require('./src/routes/shipments');
-const payoutsRouter = require('./src/routes/payouts');
-const reportsRouter = require('./src/routes/reports');
 const deliveryRouter = require('./src/routes/delivery');
 const chatRouter = require('./src/routes/chat');
 const uploadsRouter = require('./src/routes/uploads');
@@ -47,13 +44,13 @@ const searchRouter = require('./src/routes/search');
 const escrowRouter = require('./src/routes/escrow');
 const mlRouter = require('./src/routes/ml');
 const wishlistRouter = require('./src/routes/wishlist');
+const web3Router = require('./src/routes/web3');
 
 // Models for cron job
 const Escrow = require('./src/models/Escrow');
 const Shop = require('./src/models/Shop');
 const User = require('./src/models/User');
 const Payout = require('./src/models/Payout');
-
 const app = express();
 
 // Core middleware
@@ -107,8 +104,6 @@ app.use('/api/v1/reels', reelsRouter);
 app.use('/api/v1/social', socialRouter);
 app.use('/api/v1/orders', ordersRouter);
 app.use('/api/v1/shipments', shipmentsRouter);
-app.use('/api/v1/payouts', payoutsRouter);
-app.use('/api/v1/reports', reportsRouter);
 app.use('/api/v1/delivery', deliveryRouter);
 app.use('/api/v1/chat', chatRouter);
 app.use('/api/v1/uploads', uploadsRouter);
@@ -126,12 +121,12 @@ app.use('/api/v1/categories', categoriesRouter);
 app.use('/api/v1/tags', tagsRouter);
 app.use('/api/v1/taxes', taxesRouter);
 app.use('/api/v1/coupons', couponsRouter);
+app.use('/api/v1/web3', web3Router);
 
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
 });
-
 // Error handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
@@ -154,6 +149,17 @@ async function start() {
 
   io.on('connection', (socket) => {
     console.log('Socket connected:', socket.id);
+    socket.on('chat:join', (conversationId) => {
+      if (!conversationId) return;
+      socket.join(`conv:${conversationId}`);
+      socket.emit('chat:joined', conversationId);
+    });
+
+    socket.on('chat:leave', (conversationId) => {
+      if (!conversationId) return;
+      socket.leave(`conv:${conversationId}`);
+      socket.emit('chat:left', conversationId);
+    });
     socket.on('disconnect', () => console.log('Socket disconnected:', socket.id));
   });
 

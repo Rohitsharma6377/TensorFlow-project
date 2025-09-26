@@ -842,12 +842,64 @@ export interface ShopListItemDTO {
 }
 
 export const ShopsAPI = {
-  async list(params: { featured?: boolean; limit?: number } = {}) {
+  async list(params: { featured?: boolean; limit?: number; q?: string } = {}) {
     const qp = new URLSearchParams();
     if (params.featured) qp.set('featured', 'true');
     if (params.limit) qp.set('limit', String(params.limit));
+    if (params.q) qp.set('q', params.q);
     const q = qp.toString();
     const path = `/api/v1/shops${q ? `?${q}` : ''}`;
     return api<{ success: boolean; shops: ShopListItemDTO[] }>(path, { method: 'GET', skipAuth: true });
+  },
+};
+
+// Web3/Blockchain API
+export type UTXO = { txid: string; vout: number; value: number };
+
+export const Web3API = {
+  async info() {
+    return api<{ success: true; coin: string; difficulty: number; miningReward: number; height: number; miner?: string; valid: boolean }>(
+      '/api/v1/web3/info',
+      { method: 'GET' }
+    );
+  },
+  async chain() {
+    return api<{ success: true; chain: any[]; valid: boolean }>('/api/v1/web3/chain', { method: 'GET' });
+  },
+  async balance(address: string) {
+    return api<{ success: true; address: string; balance: number; coin: string }>(`/api/v1/web3/balance/${address}`, { method: 'GET' });
+  },
+  async utxo(address: string) {
+    return api<{ success: true; address: string; utxos: UTXO[] }>(`/api/v1/web3/utxo/${address}`, { method: 'GET' });
+  },
+  async mempool() {
+    return api<{ success: true; mempool: any[] }>('/api/v1/web3/mempool', { method: 'GET' });
+  },
+  async registerWallet(publicKey?: string) {
+    return api<{ success: boolean; user: any; wallet: { address: string; publicKey: string; privateKey?: string } }>(
+      '/api/v1/web3/wallet/register',
+      { method: 'POST', body: JSON.stringify(publicKey ? { publicKey } : {}) }
+    );
+  },
+  async setMiner(address: string) {
+    return api<{ success: boolean; miner: string }>('/api/v1/web3/miner', { method: 'POST', body: JSON.stringify({ address }) });
+  },
+  async mine(minerAddress?: string) {
+    return api<{ success: boolean; blockHash: string; height: number }>(
+      '/api/v1/web3/mine',
+      { method: 'POST', body: JSON.stringify(minerAddress ? { minerAddress } : {}) }
+    );
+  },
+  async build(fromAddress: string, outputs: { address: string; value: number }[], fee: number = 0) {
+    return api<{ success: boolean; signingHash: string; vin: { txid: string; vout: number }[]; vout: { address: string; value: number }[] }>(
+      '/api/v1/web3/tx/build',
+      { method: 'POST', body: JSON.stringify({ fromAddress, outputs, fee }) }
+    );
+  },
+  async queueTx(vin: { txid: string; vout: number; signature: string; publicKey: string }[], vout: { address: string; value: number }[]) {
+    return api<{ success: boolean; txid: string }>(
+      '/api/v1/web3/tx/queue',
+      { method: 'POST', body: JSON.stringify({ vin, vout }) }
+    );
   },
 };

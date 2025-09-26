@@ -27,6 +27,9 @@ const UserSchema = new mongoose.Schema(
     isVerified: { type: Boolean, default: false },
     isBanned: { type: Boolean, default: false },
     walletBalance: { type: Number, default: 0 },
+    // Web3 wallet fields
+    walletAddress: { type: String, index: true },
+    walletPublicKey: { type: String },
     addresses: [
       {
         id: { type: String },
@@ -46,3 +49,4 @@ const UserSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model('User', UserSchema);
+

@@ -3,6 +3,8 @@ const { body, validationResult } = require('express-validator');
 const Order = require('../models/Order');
 const Escrow = require('../models/Escrow');
 const auth = require('../middleware/auth');
+const User = require('../models/User');
+const { chain, Transaction } = require('../web3/blockchain');
 
 const router = express.Router();
 
@@ -26,6 +28,19 @@ router.post('/checkout', auth(), [body('items').isArray({ min: 1 }), body('total
     }
     const allocations = Array.from(allocMap.entries()).map(([shop, amount]) => ({ shop, amount }));
     const escrow = await Escrow.create({ order: order._id, totalAmount: req.body.totalAmount, allocations });
+    // Reward coins to user's wallet (optional demo): 1% of total as reward
+    try {
+      const user = await User.findById(req.user.id);
+      if (user && user.walletAddress) {
+        const reward = Math.max(0, Number(req.body.totalAmount) * 0.01);
+        if (reward > 0) {
+          const rewardTx = new Transaction(null, user.walletAddress, reward);
+          chain.addBlock([rewardTx]);
+        }
+      }
+    } catch (e) {
+      console.error('Blockchain reward failed (non-fatal):', e.message);
+    }
     res.status(201).json({ success: true, order, escrow });
   } catch (err) {
     console.error('Checkout error', err);

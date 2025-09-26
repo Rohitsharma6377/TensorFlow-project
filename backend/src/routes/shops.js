@@ -8,14 +8,18 @@ const ShopReview = require('../models/ShopReview');
 
 const router = express.Router();
 
-// Public list shops with optional filters: ?featured=true&limit=10
+// Public list shops with optional filters: ?featured=true&limit=10&q=term
 router.get('/', async (req, res) => {
   try {
-    const { featured, limit = 20 } = req.query;
-    const q = { status: 'active', isActive: true };
-    if (featured === 'true') q.isFeatured = true;
+    const { featured, limit = 20, q: query } = req.query;
+    const match = { status: 'active', isActive: true };
+    if (featured === 'true') match.isFeatured = true;
+    if (query && String(query).trim()) {
+      const regex = new RegExp(String(query).trim(), 'i');
+      match.$or = [{ name: regex }, { slug: regex }];
+    }
     const lim = Math.min(parseInt(limit, 10) || 20, 50);
-    const shops = await Shop.find(q)
+    const shops = await Shop.find(match)
       .select('name slug logo isVerified')
       .sort({ createdAt: -1 })
       .limit(lim)

@@ -24,7 +24,7 @@ interface Banner {
   link: string;
 }
 
-export function LeftSidebar() {
+export function LeftSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const dispatch = useAppDispatch();
   const { items: featuredShops, status } = useAppSelector((s) => s.shops);
 
@@ -74,9 +74,12 @@ export function LeftSidebar() {
     }
   ];
 
+  // Only show shops the user is not following yet
+  const unfollowed = Array.isArray(featuredShops) ? featuredShops.filter((s: any) => !s.isFollowing) : [];
+
   return (
     <div className="w-full h-full bg-white/80 backdrop-blur-sm dark:bg-gray-900/80 border-r border-emerald-200 dark:border-gray-700 overflow-y-auto shadow-lg">
-      <div className="p-4 space-y-6">
+      <div className="pt-4 sm:pt-6 px-3 sm:px-4 pb-16 sm:pb-4 space-y-5 sm:space-y-6">{/* mobile-safe padding */}
         
         {/* Featured Shops */}
         <div className="space-y-3">
@@ -88,24 +91,28 @@ export function LeftSidebar() {
             <ChevronRightIcon className="h-4 w-4 text-gray-400" />
           </div>
           
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {status === 'loading' && <div className="text-xs text-gray-500">Loading shops...</div>}
-            {status !== 'loading' && featuredShops.length === 0 && (
+            {status !== 'loading' && unfollowed.length === 0 && (
               <div className="text-xs text-gray-500">No shops found.</div>
             )}
-            {featuredShops.map((shop) => {
+            {/* Horizontal scroll on mobile, stacked on md+ */}
+            <div className="flex gap-2 overflow-x-auto md:overflow-visible md:flex-col no-scrollbar py-1">
+            {unfollowed.map((shop) => {
               const logo = typeof (shop as any).logo === 'object' ? ((shop as any).logo as any)?.url : ((shop as any).logo as string | undefined);
               const isFollowing = !!(shop as any).isFollowing;
               return (
                 <div
                   key={shop._id}
-                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-gray-800 transition-colors border border-transparent hover:border-emerald-200"
+                  className="flex-shrink-0 md:flex-shrink md:w-auto w-[85%] xs:w-[70%] sm:w-auto flex items-center gap-3 p-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-gray-800 transition-colors border border-transparent hover:border-emerald-200"
                 >
-                  <Link href={`/shops/${shop.slug}`} className="flex items-center gap-3">
+                  <Link href={`/shops/${shop.slug}`} className="flex items-center gap-3" onClick={onNavigate}
+                  >
                     <div className="relative">
                       <img
                         src={logo || '/shop-placeholder.png'}
                         alt={shop.name}
+                        loading="lazy"
                         className="w-10 h-10 rounded-full object-cover"
                       />
                       {shop.isVerified && (
@@ -136,6 +143,7 @@ export function LeftSidebar() {
                 </div>
               );
             })}
+            </div>
           </div>
         </div>
 
@@ -146,18 +154,21 @@ export function LeftSidebar() {
             Hot Deals
           </h3>
           
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {banners.map((banner) => (
-              <div key={banner.id} className="relative rounded-lg overflow-hidden cursor-pointer group border-2 border-transparent hover:border-sky-300 transition-all">
-                <img 
-                  src={banner.image} 
-                  alt={banner.title}
-                  className="w-full h-24 object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/70 to-sky-500/70 flex items-center justify-center">
-                  <span className="text-white font-semibold text-sm">{banner.title}</span>
+              <Link key={banner.id} href={banner.link} onClick={onNavigate} className="block">
+                <div className="relative rounded-lg overflow-hidden cursor-pointer group border-2 border-transparent hover:border-sky-300 transition-all">
+                  <img 
+                    src={banner.image} 
+                    alt={banner.title}
+                    loading="lazy"
+                    className="w-full h-20 sm:h-24 object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/70 to-sky-500/70 flex items-center justify-center">
+                    <span className="text-white font-semibold text-sm">{banner.title}</span>
+                  </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -172,14 +183,15 @@ export function LeftSidebar() {
             <ChevronRightIcon className="h-4 w-4 text-gray-400" />
           </div>
           
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {hotOffers.map((offer) => (
-              <div key={offer.id} className="bg-gradient-to-r from-emerald-50 to-sky-50 dark:from-emerald-900/20 dark:to-sky-900/20 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800 hover:shadow-lg transition-all">
-                <div className="flex items-center gap-3">
+              <div key={offer.id} className="bg-gradient-to-r from-emerald-50 to-sky-50 dark:from-emerald-900/20 dark:to-sky-900/20 rounded-lg p-2 sm:p-3 border border-emerald-200 dark:border-emerald-800 hover:shadow-lg transition-all">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <img 
                     src={offer.image} 
                     alt={offer.title}
-                    className="w-12 h-12 rounded-lg object-cover"
+                    loading="lazy"
+                    className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg object-cover"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -187,7 +199,7 @@ export function LeftSidebar() {
                         {offer.discount}
                       </span>
                     </div>
-                    <p className="text-sm font-medium text-emerald-900 dark:text-white mt-1">
+                    <p className="text-sm font-medium text-emerald-900 dark:text-white mt-1 line-clamp-1">
                       {offer.title}
                     </p>
                     <p className="text-xs text-sky-600 dark:text-gray-400">
@@ -206,7 +218,7 @@ export function LeftSidebar() {
             Categories
           </h3>
           
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 xs:grid-cols-3 sm:grid-cols-3 gap-2">
             {[
               { name: 'Fashion', icon: '👗', color: 'bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700 border border-emerald-300' },
               { name: 'Electronics', icon: '📱', color: 'bg-gradient-to-br from-sky-100 to-sky-200 text-sky-700 border border-sky-300' },
@@ -215,13 +227,15 @@ export function LeftSidebar() {
               { name: 'Sports', icon: '⚽', color: 'bg-gradient-to-br from-sky-100 to-blue-200 text-sky-700 border border-sky-300' },
               { name: 'Books', icon: '📚', color: 'bg-gradient-to-br from-blue-100 to-emerald-200 text-blue-700 border border-blue-300' }
             ].map((category) => (
-              <div 
+              <Link
                 key={category.name}
-                className={`${category.color} rounded-lg p-3 text-center cursor-pointer hover:scale-105 transition-transform`}
+                href={`/explore?category=${encodeURIComponent(category.name)}`}
+                className={`${category.color} rounded-lg p-2 sm:p-3 text-center cursor-pointer hover:scale-105 transition-transform`}
+                onClick={onNavigate}
               >
-                <div className="text-lg mb-1">{category.icon}</div>
-                <div className="text-xs font-medium">{category.name}</div>
-              </div>
+                <div className="text-base sm:text-lg mb-1">{category.icon}</div>
+                <div className="text-[11px] sm:text-xs font-medium">{category.name}</div>
+              </Link>
             ))}
           </div>
         </div>
@@ -234,12 +248,14 @@ export function LeftSidebar() {
           
           <div className="flex flex-wrap gap-2">
             {['#WinterSale', '#NewYear2025', '#Fashion', '#TechDeals', '#HomeDecor'].map((tag) => (
-              <span 
+              <Link
                 key={tag}
-                className="bg-gradient-to-r from-emerald-100 to-sky-100 dark:bg-gray-800 text-emerald-700 dark:text-gray-300 text-xs px-2 py-1 rounded-full cursor-pointer hover:from-emerald-200 hover:to-sky-200 dark:hover:bg-gray-700 transition-all border border-emerald-200"
+                href={`/explore?q=${encodeURIComponent(tag.replace('#',''))}`}
+                className="bg-gradient-to-r from-emerald-100 to-sky-100 dark:bg-gray-800 text-emerald-700 dark:text-gray-300 text-[11px] sm:text-xs px-2 py-1 rounded-full cursor-pointer hover:from-emerald-200 hover:to-sky-200 dark:hover:bg-gray-700 transition-all border border-emerald-200"
+                onClick={onNavigate}
               >
                 {tag}
-              </span>
+              </Link>
             ))}
           </div>
         </div>

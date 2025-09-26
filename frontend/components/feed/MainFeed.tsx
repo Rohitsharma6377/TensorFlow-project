@@ -140,12 +140,12 @@ export function MainFeed() {
           const prodThumb = prodObj?.mainImage || (Array.isArray(prodObj?.images) ? prodObj.images[0] : undefined);
           
           return (
-            <div key={pid} className="relative bg-white/90 backdrop-blur-md dark:bg-gray-900/90 rounded-2xl border border-emerald-200/50 dark:border-gray-700 overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-[1.02] group">
+            <div key={pid} className="relative bg-white/90 backdrop-blur-md dark:bg-gray-900/90 rounded-2xl border border-emerald-200/50 dark:border-gray-700 overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.01] group">
               {/* Decorative gradient overlay */}
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/20 via-sky-50/20 to-blue-50/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
               
               {/* Post Header */}
-              <div className="relative flex items-center justify-between p-3">
+              <div className="relative flex items-center justify-between p-3 sm:p-4">
                 <div className="flex items-center gap-3">
                   <div className="relative">
                     {shopSlug ? (
@@ -196,62 +196,52 @@ export function MainFeed() {
                 )}
               </div>
 
-              {/* Post Media - Fixed 300x300 */}
-              <div className="relative mx-auto mb-2 w-full max-w-[300px]">
-                <div className="w-full h-[300px] bg-gradient-to-br from-emerald-50 to-sky-50 dark:bg-gray-800 relative overflow-hidden rounded-lg border border-emerald-100 dark:border-gray-700 shadow-inner">
-                  {mediaArr[0] && (
-                    <img
-                      src={mediaArr[currentIndex]}
-                      alt="Post content"
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                  
-                  {/* Optional reel overlay if audio present in future */}
-                  {false && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <button 
-                        className="w-8 h-8 bg-emerald-500/70 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-emerald-600/70 transition-colors"
-                      >
-                        <PlayIcon className="h-8 w-8 text-white ml-1" />
-                      </button>
-                    </div>
-                  )}
+              {/* Post Media - Responsive (square on mobile, taller on larger screens) */}
+              <div className="relative w-full">
+                <div className="relative mx-3 sm:mx-4 mb-3 rounded-xl overflow-hidden border border-emerald-100 dark:border-gray-700 bg-gradient-to-br from-emerald-50 to-sky-50 dark:from-gray-800 dark:to-gray-800 shadow-inner">
+                  {/* aspect box */}
+                  <div className="relative w-full pb-[100%] sm:pb-[80%]">
+                    {mediaArr[0] && (
+                      <img
+                        src={mediaArr[currentIndex]}
+                        alt="Post content"
+                        loading="lazy"
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    )}
 
-                  {/* Media Navigation */}
-                  {mediaArr.length > 1 && (
-                    <>
-                      <button
-                        onClick={() => prevMedia(pid, mediaArr.length)}
-                        className="absolute left-2 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-black bg-opacity-50 rounded-full flex items-center justify-center text-white"
-                      >
-                        ‹
-                      </button>
-                      <button
-                        onClick={() => nextMedia(pid, mediaArr.length)}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 w-8 h-8 bg-black bg-opacity-50 rounded-full flex items-center justify-center text-white"
-                      >
-                        ›
-                      </button>
-                      
-                      {/* Media Indicators */}
-                      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-1">
-                        {mediaArr.map((_, index) => (
-                          <div 
-                            key={index}
-                            className={`w-2 h-2 rounded-full ${
-                              index === currentIndex ? 'bg-white' : 'bg-white bg-opacity-50'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </>
-                  )}
+                    {/* Media Navigation */}
+                    {mediaArr.length > 1 && (
+                      <>
+                        <button
+                          onClick={() => prevMedia(pid, mediaArr.length)}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white"
+                        >
+                          ‹
+                        </button>
+                        <button
+                          onClick={() => nextMedia(pid, mediaArr.length)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white"
+                        >
+                          ›
+                        </button>
+                        {/* Media Indicators */}
+                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                          {mediaArr.map((_, index) => (
+                            <div
+                              key={index}
+                              className={`w-1.5 h-1.5 rounded-full ${index === currentIndex ? 'bg-white' : 'bg-white/50'}`}
+                            />
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {/* Post Actions */}
-              <div className="relative p-3">
+              <div className="relative p-3 sm:p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
                     <button 
@@ -329,7 +319,7 @@ export function MainFeed() {
                     value={commentText[pid] || ''}
                     onChange={(e) => setCommentText((m) => ({ ...m, [pid]: e.target.value }))}
                     placeholder="Add a comment..."
-                    className="flex-1 text-sm rounded-md border border-emerald-200 bg-white/70 dark:bg-gray-800 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-400"
+                    className="flex-1 text-sm rounded-md border border-emerald-200 bg-white/80 dark:bg-gray-800/80 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-400"
                   />
                   <button
                     disabled={commentLoading[pid] || !(commentText[pid] || '').trim()}

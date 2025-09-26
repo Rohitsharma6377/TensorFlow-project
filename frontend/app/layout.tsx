@@ -6,6 +6,7 @@ import { Navbar } from '@/components/navbar'
 import Providers from './providers'
 import ConditionalLeftSidebar from '@/components/layout/ConditionalLeftSidebar'
 import MainContainer from '@/components/layout/MainContainer'
+import BottomBar from '@/components/layout/BottomBar'
 import Toaster from '@/components/ui/Toaster'
 import InitAuth from './init-auth'
 
@@ -43,7 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <NextUIProvider>
           <Providers>
             <InitAuth />
-            <div className="flex flex-col">
+            <div className="flex flex-col min-h-screen">
               <Navbar />
 
               {/* Universal Left Sidebar (hidden on auth routes) */}
@@ -51,8 +52,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
               {/* Main content with conditional sidebar padding */}
               <MainContainer>
-                {children}
+                {/* Ensure space for BottomBar on mobile */}
+                <div className="pb-16 lg:pb-0 min-h-[60vh]">
+                  {children}
+                </div>
               </MainContainer>
+
+              {/* Mobile Bottom Navigation */}
+              <BottomBar />
             </div>
           </Providers>
           {/* Global toast notifications */}

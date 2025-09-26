@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide scrollbar utility */
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+/* Slide-in animation for mobile overlays */
+@keyframes slideIn {
+  from { transform: translateX(-8%); opacity: 0.95; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
 :root {
   --background: 248 250 252;
   --foreground: 15 23 42;

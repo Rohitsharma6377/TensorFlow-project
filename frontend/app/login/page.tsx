@@ -84,17 +84,20 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
+    <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-emerald-50 to-white dark:from-slate-900 dark:via-slate-900 dark:to-slate-950 py-12 px-4 sm:px-6 lg:px-8 overflow-hidden">
+      {/* decorative blobs */}
+      <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-emerald-200/40 blur-3xl" />
+      <Card className="w-full max-w-md backdrop-blur-xl bg-white/70 dark:bg-gray-900/70 border-emerald-100 shadow-xl">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-sky-600 bg-clip-text text-transparent">Welcome back</CardTitle>
           <CardDescription>
             Enter your credentials to access your account
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <Button variant="outline" disabled={isLoading}>
+            <Button variant="outline" className="border-sky-200 hover:bg-sky-50" disabled={isLoading}>
               {isLoading ? (
                 <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -102,7 +105,7 @@ export default function LoginPage() {
               )}
               Google
             </Button>
-            <Button variant="outline" disabled={isLoading}>
+            <Button variant="outline" className="border-emerald-200 hover:bg-emerald-50" disabled={isLoading}>
               {isLoading ? (
                 <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -135,6 +138,7 @@ export default function LoginPage() {
                 onChange={handleChange}
                 disabled={isLoading}
                 placeholder="Enter your email or username"
+                className="bg-white/70 dark:bg-gray-800/60 border-sky-200 focus-visible:ring-sky-300"
               />
             </div>
             <div className="space-y-2">
@@ -155,7 +159,7 @@ export default function LoginPage() {
                   onChange={handleChange}
                   disabled={isLoading}
                   placeholder="Enter your password"
-                  className="pr-10"
+                  className="pr-10 bg-white/70 dark:bg-gray-800/60 border-emerald-200 focus-visible:ring-emerald-300"
                 />
                 <button
                   type="button"
@@ -171,7 +175,7 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full bg-gradient-to-r from-emerald-500 to-sky-500 text-white hover:from-emerald-600 hover:to-sky-600" disabled={isLoading}>
               {isLoading && (
                 <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
               )}
@@ -182,7 +186,7 @@ export default function LoginPage() {
         <CardFooter className="flex flex-col space-y-4">
           <Button 
             variant="outline" 
-            className="w-full" 
+            className="w-full border-emerald-200 hover:bg-emerald-50" 
             onClick={handleGuestLogin}
             disabled={isLoading}
           >
@@ -197,7 +201,7 @@ export default function LoginPage() {
             Don&apos;t have an account?{' '}
             <Link 
               href="/register" 
-              className="font-medium text-primary hover:underline"
+              className="font-medium text-emerald-600 hover:underline"
             >
               Sign up
             </Link>

@@ -37,6 +37,8 @@ import { logout as logoutAction } from '@/store/slice/authSlice';
 // import ChatPanel from '@/components/panels/ChatPanel';/
 import NotificationsPanel from '@/components/panels/NotificationsPanel';
 import SearchModal from '@/components/search/SearchModal';
+import LeftSidebar from '@/components/feed/LeftSidebar';
+import ClientPortal from '@/components/util/ClientPortal';
 
 export function Navbar() {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -173,17 +175,6 @@ export function Navbar() {
 
           {/* Right - Navigation Icons / Hamburger */}
           <div className="flex items-center space-x-4">
-            {/* Hamburger for mobile/tablet */}
-            <button
-              type="button"
-              className="inline-flex lg:hidden p-2 rounded-md text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
-              aria-label="Open menu"
-              onClick={() => setIsMobileMenuOpen(true)}
-            >
-              <Bars3Icon className="h-6 w-6" />
-              <span className="sr-only">Open menu</span>
-            </button>
-
             {navItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -232,6 +223,17 @@ export function Navbar() {
               aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
             >
               {resolvedTheme === 'dark' ? <SunIcon className="h-6 w-6" /> : <MoonIcon className="h-6 w-6" />}
+            </button>
+
+            {/* Hamburger for mobile/tablet (moved after dark mode toggle) */}
+            <button
+              type="button"
+              className="inline-flex lg:hidden p-2 rounded-md text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
+              aria-label="Open menu"
+              onClick={() => setIsMobileMenuOpen(true)}
+            >
+              <Bars3Icon className="h-6 w-6" />
+              <span className="sr-only">Open menu</span>
             </button>
 
             {user && accessToken ? (
@@ -313,57 +315,24 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile/Tablet Drawer */}
+      {/* Mobile/Tablet LeftSidebar overlay */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-[9999] lg:hidden" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 z-10 bg-black/40" onClick={() => setIsMobileMenuOpen(false)} />
-          <div className="absolute top-0 left-0 bottom-0 z-20 w-full max-w-xs bg-white dark:bg-gray-900 border-r shadow-2xl">
-            <div className="flex items-center justify-between px-4 h-16 border-b bg-white/95 dark:bg-gray-900/95 sticky top-0">
-              <span className="font-semibold">Menu</span>
-              <button className="p-2" onClick={() => setIsMobileMenuOpen(false)} aria-label="Close menu">
-                ✕
-              </button>
-            </div>
-            <div className="h-[calc(100%-4rem)] overflow-y-auto px-2 py-3">
-              {/* Quick actions */}
-              <div className="flex gap-2 mb-3">
-                <button onClick={() => { setOpenNotifs(true); setIsMobileMenuOpen(false); }} className="p-2 rounded-md text-gray-700 dark:text-gray-300">
-                  <BellIcon className="h-5 w-5" />
-                </button>
-                <button onClick={() => { setOpenChat(true); setIsMobileMenuOpen(false); }} className="p-2 rounded-md text-gray-700 dark:text-gray-300">
-                  <PaperAirplaneIcon className="h-5 w-5 -rotate-45" />
-                </button>
+        <ClientPortal>
+          <div className="fixed inset-0 z-[100000] lg:hidden" role="dialog" aria-modal="true">
+            <div className="absolute inset-0 z-10 bg-black/50" onClick={() => setIsMobileMenuOpen(false)} />
+            <div className="absolute top-0 left-0 bottom-0 right-0 z-20 w-full bg-white dark:bg-gray-900 shadow-2xl flex flex-col animate-[slideIn_200ms_ease-out]">
+              <div className="flex items-center justify-between px-4 h-14 border-b bg-white/95 dark:bg-gray-900/95">
+                <span className="font-semibold">Browse</span>
+                <button className="p-2" onClick={() => setIsMobileMenuOpen(false)} aria-label="Close sidebar">✕</button>
               </div>
-
-              {/* Nav items */}
-              <div className="flex flex-col">
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link key={item.name} href={item.href} onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center rounded-md px-3 py-2 text-sm ${isActive(item.href) ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-                      <Icon className="h-5 w-5 mr-3" />
-                      {item.name}
-                    </Link>
-                  );
-                })}
-              </div>
-
-              {/* Auth links */}
-              <div className="mt-4 border-t pt-3">
-                {user && accessToken ? (
-                  <button onClick={() => { dispatch(logoutAction()); try { document.cookie = 'role=; Max-Age=0; Path=/'; } catch {}; router.push('/'); setIsMobileMenuOpen(false); }} className="w-full text-left rounded-md px-3 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
-                    Logout
-                  </button>
-                ) : (
-                  <>
-                    <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="block rounded-md px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">Login</Link>
-                    <Link href="/register" onClick={() => setIsMobileMenuOpen(false)} className="block rounded-md px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800">Sign Up</Link>
-                  </>
-                )}
+              <div className="flex-1 overflow-hidden relative">
+                <div className="absolute inset-0 overflow-y-auto no-scrollbar">
+                  <LeftSidebar onNavigate={() => setIsMobileMenuOpen(false)} />
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </ClientPortal>
       )}
       
       {/* Slide-over panels */}

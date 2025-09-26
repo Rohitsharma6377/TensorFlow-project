@@ -19,7 +19,7 @@ const items = [
   { href: '/user/rewards', label: 'Rewards', icon: Icons.gift },
 ];
 
-export function ProfileSidebar({ collapsed = false, onToggle }: { collapsed?: boolean; onToggle?: () => void }) {
+export function ProfileSidebar({ collapsed = false, onToggle, className }: { collapsed?: boolean; onToggle?: () => void; className?: string }) {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const { user } = useAppSelector((s) => s.auth);
@@ -28,7 +28,8 @@ export function ProfileSidebar({ collapsed = false, onToggle }: { collapsed?: bo
     <aside
       className={cn(
         'shrink-0 border-r bg-gradient-to-b from-sky-50 via-emerald-50 to-emerald-100/40 transition-all duration-300',
-        collapsed ? 'w-14' : 'w-full md:w-64'
+        collapsed ? 'w-14' : 'w-full md:w-64',
+        className
       )}
     >
       <div className={cn('p-4 border-b border-emerald-100/60 flex items-center justify-between')}

@@ -51,16 +51,75 @@ src/
   middleware/auth.js     # JWT auth middleware
   models/User.js         # User model
   routes/
-    auth.js              # Auth routes
     health.js            # Healthcheck route
   utils/jwt.js           # JWT helper
 .env.example             # Environment template
+
+## New: Web3 Blockchain + Wallet + Chat
+
+This backend now includes a minimal blockchain ledger, wallet utilities, and real-time chat.
+
+### Setup
+
+- Install dependencies (added `elliptic` and `crypto-js`):
+
+```
+npm install
 ```
 
-## Next Steps (planned)
+- Optionally set the frontend origin for CORS:
 
-- Shops, products, orders, social (likes/comments/follows), escrow & payouts, delivery partner webhooks.
-- Admin and Seller dashboards endpoints.
-- WebSocket channels for realtime events.
+```
+# .env
+FRONTEND_ORIGIN=http://localhost:3000
+```
 
-If you need help wiring specific modules next, open an issue or ask in this chat.
+### Real-time Chat (Socket.IO)
+
+- Socket server is initialized in `index.js`.
+- Join a conversation room from the client:
+
+```js
+socket.emit('chat:join', conversationId);
+socket.on('chat:message', ({ conversationId, message }) => {
+  // render message
+});
+```
+
+- REST endpoints in `src/routes/chat.js`:
+
+- POST `/api/v1/chat/conversations` create or fetch conversation
+- GET `/api/v1/chat/conversations` list conversations for current user
+- GET `/api/v1/chat/conversations/:id/messages` list messages
+- POST `/api/v1/chat/conversations/:id/messages` send message (also emits to room `conv:<id>`)
+
+### Blockchain & Wallet (Demo)
+
+Code lives in `src/web3/`:
+
+- `blockchain.js`: `Transaction`, `Block`, `Blockchain`, and a singleton `chain`
+- `wallet.js`: ECDSA keypair (secp256k1), basic signing/verification, address derivation
+
+REST endpoints in `src/routes/web3.js`:
+
+- GET `/api/v1/web3/chain` returns the full chain (demo)
+- GET `/api/v1/web3/balance/:address` returns computed balance from chain
+- POST `/api/v1/web3/wallet/register` registers a wallet for the current user
+  - Body optional: `{ publicKey }` if the client already has a keypair
+  - If not provided, server will generate a keypair and return `{ privateKey, publicKey, address }` (do not store private key server-side)
+- POST `/api/v1/web3/tx` creates a transaction and mines a block immediately (demo PoW)
+  - Body (coinbase): `{ toAddress, amount }`
+  - Body (signed): `{ fromAddress, toAddress, amount, publicKey, signature }`
+
+User model additions (`src/models/User.js`):
+
+- `walletAddress`, `walletPublicKey` for linking app users to on-ledger addresses.
+
+Order reward hook (`src/routes/orders.js`):
+
+- After checkout, the user is rewarded with 1% of `totalAmount` as a coinbase transaction credited to their `walletAddress` (if present).
+
+Security notes:
+
+- Store wallet private keys on the client only. Server never persists private keys.
+- Endpoints are protected with JWT/session via `src/middleware/auth.js`.

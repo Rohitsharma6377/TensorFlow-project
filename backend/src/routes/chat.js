@@ -34,4 +34,40 @@ router.get('/conversations/:id/messages', auth(), async (req, res) => {
   res.json({ success: true, messages: msgs.reverse() });
 });
 
+// Send a message to a conversation
+router.post(
+  '/conversations/:id/messages',
+  auth(),
+  [body('text').optional().isString(), body('attachments').optional().isArray()],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    const conv = await Conversation.findById(req.params.id);
+    if (!conv) return res.status(404).json({ success: false, message: 'Conversation not found' });
+    // Ensure user is participant
+    if (!conv.participants.map(String).includes(String(req.user.id))) {
+      return res.status(403).json({ success: false, message: 'Not a participant' });
+    }
+    const msg = await Message.create({
+      conversation: conv._id,
+      sender: req.user.id,
+      text: req.body.text || '',
+      attachments: req.body.attachments || [],
+      readBy: [req.user.id],
+    });
+    // Touch the conversation updatedAt
+    await Conversation.updateOne({ _id: conv._id }, { $set: { updatedAt: new Date() } });
+
+    // Emit via Socket.IO
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`conv:${conv._id}`).emit('chat:message', {
+        conversationId: String(conv._id),
+        message: msg,
+      });
+    }
+    res.status(201).json({ success: true, message: msg });
+  }
+);
+
 module.exports = router;
