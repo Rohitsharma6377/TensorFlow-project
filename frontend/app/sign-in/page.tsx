@@ -11,7 +11,7 @@ export default function SignInPage() {
 
   const onFinish = async (values: any) => {
     try {
-      const res = await dispatch(loginThunk({ email: values.email, password: values.password })).unwrap()
+      const res = await dispatch(loginThunk({ usernameOrEmail: values.email, password: values.password })).unwrap()
       message.success(`Welcome back ${res.user?.username || ''}`)
       router.replace('/dashboard')
     } catch (err: any) {
@@ -26,7 +26,7 @@ export default function SignInPage() {
         <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
           <Input placeholder="you@example.com" />
         </Form.Item>
-        <Form.Item name="password" label="Password" rules={[{ required: true, min: 6 }]}>
+        <Form.Item name="password" label="Password" rules={[{ required: true, min: 6 }]}> 
           <Input.Password placeholder="••••••••" />
         </Form.Item>
         <div className="flex items-center justify-between">

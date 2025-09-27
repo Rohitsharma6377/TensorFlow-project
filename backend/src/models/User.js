@@ -44,6 +44,9 @@ const UserSchema = new mongoose.Schema(
         coords: { lat: Number, lng: Number },
       },
     ],
+    // Auth tokens (for auditing/debug) - Do not use for auth validation
+    lastToken: { type: String },
+    tokenHistory: [{ token: String, issuedAt: { type: Date, default: Date.now } }],
   },
   { timestamps: true }
 );

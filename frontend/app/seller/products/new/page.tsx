@@ -10,7 +10,6 @@ import {
   Typography,
   TextField,
   Button,
-  Grid,
   Card,
   CardContent,
   FormControl,
@@ -28,6 +27,7 @@ import {
   AccordionDetails,
   Container,
 } from "@mui/material"
+import Grid from "@mui/material/Grid"
 import {
   Add,
   Delete,

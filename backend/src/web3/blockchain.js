@@ -98,13 +98,15 @@ class Block {
 
 class Blockchain {
   constructor() {
-    this.chain = [this.createGenesisBlock()];
+    // Initialize core fields BEFORE creating the genesis block
     this.difficulty = 3; // number of leading zeros
     this.mempool = []; // pending Transaction
     this.coinName = 'IND';
     this.miningReward = 50; // IND per block (subsidy)
     this.currentMiner = null; // address to receive reward on mine
     this.utxo = new Map(); // key: `${txid}:${index}` -> TxOut
+    // Now we can safely create the genesis block which populates UTXO
+    this.chain = [this.createGenesisBlock()];
   }
 
   createGenesisBlock() {

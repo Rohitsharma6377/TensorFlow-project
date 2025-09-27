@@ -1,0 +1,26 @@
+version: "3.9"
+services:
+  ind-node-1:
+    build: .
+    container_name: ind-node-1
+    environment:
+      - HTTP_PORT=4100
+      - P2P_LISTEN=/ip4/0.0.0.0/tcp/30301
+      - BOOTNODES=
+      - DIFFICULTY=3
+    ports:
+      - "4100:4100"
+      - "30301:30301"
+  ind-node-2:
+    build: .
+    container_name: ind-node-2
+    environment:
+      - HTTP_PORT=4101
+      - P2P_LISTEN=/ip4/0.0.0.0/tcp/30302
+      - BOOTNODES=/ip4/ind-node-1/tcp/30301/p2p/REPLACE_PEERID
+      - DIFFICULTY=3
+    ports:
+      - "4101:4101"
+      - "30302:30302"
+    depends_on:
+      - ind-node-1

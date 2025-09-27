@@ -1,0 +1,28 @@
+{
+  "name": "ind-chain-node",
+  "version": "0.1.0",
+  "description": "JavaScript PoW UTXO blockchain node with libp2p networking and REST API",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "cross-env NODE_ENV=development nodemon index.js"
+  },
+  "dependencies": {
+    "@libp2p/mplex": "^11.0.10",
+    "@chainsafe/libp2p-noise": "^16.0.3",
+    "@libp2p/tcp": "^9.0.16",
+    "@noble/hashes": "^1.4.0",
+    "@noble/secp256k1": "^2.1.0",
+    "express": "^4.19.2",
+    "libp2p": "^1.6.1",
+    "level": "^8.0.1",
+    "ws": "^8.18.0",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "cross-env": "^7.0.3"
+  }
+}

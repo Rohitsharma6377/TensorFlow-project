@@ -6,6 +6,7 @@ import { hydrate as hydrateCart, CartItem } from '@/store/slice/cartSlice';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { hydrate as hydrateWishlist, WishlistItem } from '@/store/slice/wishlistSlice';
 import ThemeProvider from '@/components/theme-provider';
+import { NextUIProvider } from "@nextui-org/react";
 
 // Type guard to validate cart items
 const isValidCartItem = (item: any): item is CartItem => {
@@ -76,9 +77,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <Provider store={store}>
-      <ThemeProvider>
-        {children}
-      </ThemeProvider>
+      <NextUIProvider>
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
+      </NextUIProvider>
     </Provider>
   );
 }

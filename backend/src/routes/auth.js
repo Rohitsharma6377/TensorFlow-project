@@ -154,6 +154,16 @@ router.post(
         username: user.username 
       });
       
+      // Persist token for auditing/debug
+      try {
+        await User.findByIdAndUpdate(user._id, {
+          lastToken: token,
+          $push: { tokenHistory: { token, issuedAt: new Date() } },
+        });
+      } catch (e) {
+        console.warn('[Auth] Failed to persist token history for user', user._id, e?.message);
+      }
+
       // Set cookies for customer
       setAuthCookie(res, token);
       await createSession(res, { userId: user._id, days: 7 });
@@ -255,6 +265,16 @@ router.post(
         shopId: shop._id
       });
 
+      // Persist token for auditing/debug
+      try {
+        await User.findByIdAndUpdate(user._id, {
+          lastToken: token,
+          $push: { tokenHistory: { token, issuedAt: new Date() } },
+        });
+      } catch (e) {
+        console.warn('[Auth] Failed to persist token history for user', user._id, e?.message);
+      }
+
       // Set cookies for seller
       setAuthCookie(res, token);
       await createSession(res, { userId: user._id, days: 7 });
@@ -327,6 +347,16 @@ router.post('/login',
       if (!ok) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
       const token = signToken({ id: user._id, role: user.role, username: user.username });
+      // Persist token for auditing/debug
+      try {
+        await User.findByIdAndUpdate(user._id, {
+          lastToken: token,
+          $push: { tokenHistory: { token, issuedAt: new Date() } },
+        });
+      } catch (e) {
+        console.warn('[Auth] Failed to persist token history for user', user._id, e?.message);
+      }
+
       // Set cookies for login
       setAuthCookie(res, token);
       await createSession(res, { userId: user._id, days: 7 });

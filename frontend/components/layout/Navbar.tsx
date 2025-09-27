@@ -9,7 +9,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { logout as logoutAction } from '@/store/slice/authSlice';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -296,12 +296,12 @@ export function Navbar() {
             </DropdownMenu>
           ) : (
             <div className="hidden lg:flex items-center space-x-2">
-              <Button variant="ghost" asChild>
-                <Link href="/login">Login</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/register">Sign Up</Link>
-              </Button>
+              <Link href="/login" className={cn(buttonVariants({ variant: 'ghost' }))}>
+                Login
+              </Link>
+              <Link href="/register" className={cn(buttonVariants({ variant: 'default' }))}>
+                Sign Up
+              </Link>
             </div>
           )}
 

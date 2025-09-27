@@ -11,7 +11,6 @@ import {
   Typography,
   TextField,
   Button,
-  Grid,
   Card,
   CardContent,
   FormControl,
@@ -29,6 +28,7 @@ import {
   AccordionDetails,
   InputAdornment,
 } from "@mui/material"
+import Grid from "@mui/material/Grid"
 import {
   Store,
   Email,

@@ -26,7 +26,6 @@ import {
   Tabs,
   Tab,
 } from "@mui/material"
-import Grid from "@mui/material/Grid"
 import {
   CloudUpload,
   Delete,
@@ -236,9 +235,9 @@ export default function SellerPostsPage() {
             return filtered.length === 0 ? (
               <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>No posts found.</Box>
             ) : (
-              <Grid container spacing={2}>
+              <div className="grid gap-2 md:grid-cols-2">
                 {filtered.map((p) => (
-                  <Grid item xs={12} md={6} key={String(p._id)}>
+                  <div key={String(p._id)}>
                     <Card variant="outlined">
                       <CardContent>
                         <Box display="flex" gap={2}>
@@ -282,9 +281,9 @@ export default function SellerPostsPage() {
                         </Box>
                       </CardContent>
                     </Card>
-                  </Grid>
+                  </div>
                 ))}
-              </Grid>
+              </div>
             )
           })()}
         </Paper>
@@ -297,8 +296,8 @@ export default function SellerPostsPage() {
             {success && (<Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>)}
 
             <Box component="form" onSubmit={handleSubmit}>
-              <Grid container spacing={4}>
-                <Grid item xs={12} md={7}>
+              <div className="grid gap-4 md:grid-cols-12">
+                <div className="md:col-span-7">
                   <Stack spacing={3}>
                     <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
                       <CardContent>
@@ -357,9 +356,9 @@ export default function SellerPostsPage() {
                       </CardContent>
                     </Card>
                   </Stack>
-                </Grid>
+                </div>
 
-                <Grid item xs={12} md={5}>
+                <div className="md:col-span-5">
                   <Stack spacing={3}>
                     <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
                       <CardContent>
@@ -427,8 +426,8 @@ export default function SellerPostsPage() {
                       </CardContent>
                     </Card>
                   </Stack>
-                </Grid>
-              </Grid>
+                </div>
+              </div>
             </Box>
           </DialogContent>
           <DialogActions>

@@ -1,0 +1,15 @@
+{
+  "chainName": "IND Mainnet",
+  "rpcUrls": [
+    "https://rpc.indchain.example"
+  ],
+  "chainId": 13579,
+  "nativeCurrency": {
+    "name": "IND Coin",
+    "symbol": "IND",
+    "decimals": 18
+  },
+  "blockExplorerUrls": [
+    "https://explorer.indchain.example"
+  ]
+}

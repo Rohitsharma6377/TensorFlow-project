@@ -863,6 +863,12 @@ export const Web3API = {
       { method: 'GET' }
     );
   },
+  async quota() {
+    return api<{ success: true; date: string; count: number; limit: number; remaining: number; batchSize: number; paused: boolean; pausedFor: number; pausedUntil?: string }>(
+      '/api/v1/web3/quota',
+      { method: 'GET' }
+    );
+  },
   async chain() {
     return api<{ success: true; chain: any[]; valid: boolean }>('/api/v1/web3/chain', { method: 'GET' });
   },
@@ -882,24 +888,53 @@ export const Web3API = {
     );
   },
   async setMiner(address: string) {
-    return api<{ success: boolean; miner: string }>('/api/v1/web3/miner', { method: 'POST', body: JSON.stringify({ address }) });
+    return api<{ success: boolean; miner: string }>(
+      '/api/v1/web3/miner',
+      { method: 'POST', body: JSON.stringify({ address }) }
+    );
   },
   async mine(minerAddress?: string) {
     return api<{ success: boolean; blockHash: string; height: number }>(
       '/api/v1/web3/mine',
-      { method: 'POST', body: JSON.stringify(minerAddress ? { minerAddress } : {}) }
+      { method: 'POST', body: JSON.stringify({ minerAddress }) }
     );
   },
-  async build(fromAddress: string, outputs: { address: string; value: number }[], fee: number = 0) {
-    return api<{ success: boolean; signingHash: string; vin: { txid: string; vout: number }[]; vout: { address: string; value: number }[] }>(
+  async txBuild(fromAddress: string, outputs: { address: string; value: number }[], fee: number = 0) {
+    return api<{ success: boolean; signingHash: string; vin: Array<{ txid: string; vout: number }>; vout: { address: string; value: number }[] }>(
       '/api/v1/web3/tx/build',
       { method: 'POST', body: JSON.stringify({ fromAddress, outputs, fee }) }
     );
   },
-  async queueTx(vin: { txid: string; vout: number; signature: string; publicKey: string }[], vout: { address: string; value: number }[]) {
+  async txSubmit(
+    vin: Array<{ txid: string; vout: number; signature: string; publicKey: string }>,
+    vout: Array<{ address: string; value: number }>
+  ) {
     return api<{ success: boolean; txid: string }>(
       '/api/v1/web3/tx/queue',
       { method: 'POST', body: JSON.stringify({ vin, vout }) }
     );
+  },
+  async faucet(address: string) {
+    // Proxied faucet via backend mine endpoint (mints 50 IND to address)
+    return api<{ success: boolean; blockHash: string; height: number }>(
+      '/api/v1/web3/mine',
+      { method: 'POST', body: JSON.stringify({ minerAddress: address }) }
+    );
+  },
+  async peers() {
+    return api<{ success: boolean; count: number }>(
+      '/api/v1/web3/peers',
+      { method: 'GET' }
+    );
+  },
+  // Back-compat aliases
+  async build(fromAddress: string, outputs: { address: string; value: number }[], fee: number = 0) {
+    return Web3API.txBuild(fromAddress, outputs, fee);
+  },
+  async queueTx(
+    vin: Array<{ txid: string; vout: number; signature: string; publicKey: string }>,
+    vout: Array<{ address: string; value: number }>
+  ) {
+    return Web3API.txSubmit(vin, vout);
   },
 };

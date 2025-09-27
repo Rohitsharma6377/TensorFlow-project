@@ -26,8 +26,8 @@ import {
   AccordionSummary,
   AccordionDetails,
   Container,
+  Grid,
 } from "@mui/material"
-import Grid from "@mui/material/Grid"
 import {
   Add,
   Delete,
@@ -367,8 +367,8 @@ export default function EditProductPage() {
             {success && (<Alert severity="success" sx={{ mb: 3 }}>{success}</Alert>)}
 
             <Box component="form" onSubmit={handleSubmit}>
-              <Grid container spacing={4}>
-                <Grid item xs={12} lg={8}>
+              <div className="grid gap-4 lg:grid-cols-12">
+                <div className="lg:col-span-8">
                   <Stack spacing={4}>
                     <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
                       <CardContent>
@@ -376,22 +376,22 @@ export default function EditProductPage() {
                           <Description color="primary" />
                           Basic Information
                         </Typography>
-                        <Grid container spacing={3}>
-                          <Grid item xs={12}>
+                        <div className="grid gap-3 md:grid-cols-12">
+                          <div className="md:col-span-12">
                             <TextField fullWidth label="Product Title" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Enter product title" />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <TextField fullWidth label="SKU (Optional)" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Product SKU" />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <FormControl fullWidth>
                               <InputLabel>Status</InputLabel>
                               <Select value={status} label="Status" onChange={(e) => setStatus(e.target.value as any)}>
                                 {PRODUCT_STATUS.map((s) => (<MenuItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</MenuItem>))}
                               </Select>
                             </FormControl>
-                          </Grid>
-                          <Grid item xs={12}>
+                          </div>
+                          <div className="md:col-span-12">
                             <Typography variant="subtitle1" gutterBottom>Description</Typography>
                             <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1, p: 1 }}>
                               <CKEditor editor={ClassicEditor as any} data={description} onChange={(_evt: any, editor: any) => {
@@ -399,8 +399,8 @@ export default function EditProductPage() {
                                 setDescription(data)
                               }} />
                             </Box>
-                          </Grid>
-                        </Grid>
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
 
@@ -410,28 +410,28 @@ export default function EditProductPage() {
                           <AttachMoney color="primary" />
                           Pricing & Inventory
                         </Typography>
-                        <Grid container spacing={3}>
-                          <Grid item xs={12} md={4}>
+                        <div className="grid gap-3 md:grid-cols-12">
+                          <div className="md:col-span-4">
                             <TextField fullWidth label="Price" type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} required />
-                          </Grid>
-                          <Grid item xs={12} md={4}>
+                          </div>
+                          <div className="md:col-span-4">
                             <TextField fullWidth label="MRP (Optional)" type="number" value={mrp} onChange={(e) => setMrp(e.target.value === "" ? "" : Number(e.target.value))} />
-                          </Grid>
-                          <Grid item xs={12} md={4}>
+                          </div>
+                          <div className="md:col-span-4">
                             <FormControl fullWidth>
                               <InputLabel>Currency</InputLabel>
                               <Select value={currency} label="Currency" onChange={(e) => setCurrency(e.target.value)}>
                                 {CURRENCIES.map((c) => (<MenuItem key={c} value={c}>{c}</MenuItem>))}
                               </Select>
                             </FormControl>
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <TextField fullWidth label="Stock Quantity" type="number" value={stock} onChange={(e) => setStock(Number(e.target.value))} />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <TextField fullWidth label="Tax Rate (%)" type="number" value={taxRate} onChange={(e) => setTaxRate(e.target.value === "" ? "" : Number(e.target.value))} />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <FormControl fullWidth>
                               <InputLabel>Tax</InputLabel>
                               <Select value={taxRate === "" ? "" : String(taxRate)} label="Tax" onChange={(e) => setTaxRate(e.target.value === "" ? "" : Number(e.target.value))}>
@@ -439,8 +439,8 @@ export default function EditProductPage() {
                                 {taxes.map((t) => (<MenuItem key={t._id} value={String(t.percent)}>{t.name} — {t.percent}%</MenuItem>))}
                               </Select>
                             </FormControl>
-                          </Grid>
-                        </Grid>
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
 
@@ -456,28 +456,28 @@ export default function EditProductPage() {
                           {variants.map((variant, i) => (
                             <Card key={i} variant="outlined">
                               <CardContent>
-                                <Grid container spacing={2} alignItems="center">
-                                  <Grid item xs={12} md={2}>
+                                <div className="grid gap-2 md:grid-cols-12 items-center">
+                                  <div className="md:col-span-2">
                                     <TextField fullWidth size="small" label="SKU" value={variant.sku || ""} onChange={(e) => updateVariant(i, { sku: e.target.value })} />
-                                  </Grid>
-                                  <Grid item xs={12} md={2}>
+                                  </div>
+                                  <div className="md:col-span-2">
                                     <TextField fullWidth size="small" label="Price" type="number" value={variant.price} onChange={(e) => updateVariant(i, { price: Number(e.target.value) })} />
-                                  </Grid>
-                                  <Grid item xs={12} md={2}>
+                                  </div>
+                                  <div className="md:col-span-2">
                                     <TextField fullWidth size="small" label="Stock" type="number" value={variant.stock ?? 0} onChange={(e) => updateVariant(i, { stock: Number(e.target.value) })} />
-                                  </Grid>
-                                  <Grid item xs={12} md={2}>
+                                  </div>
+                                  <div className="md:col-span-2">
                                     <TextField fullWidth size="small" label="Color" value={variant.color || ""} onChange={(e) => updateVariant(i, { color: e.target.value })} />
-                                  </Grid>
-                                  <Grid item xs={12} md={2}>
+                                  </div>
+                                  <div className="md:col-span-2">
                                     <TextField fullWidth size="small" label="Size" value={variant.size || ""} onChange={(e) => updateVariant(i, { size: e.target.value })} />
-                                  </Grid>
-                                  <Grid item xs={12} md={2}>
+                                  </div>
+                                  <div className="md:col-span-2">
                                     <IconButton color="error" onClick={() => removeVariant(i)}>
                                       <Delete />
                                     </IconButton>
-                                  </Grid>
-                                  <Grid item xs={12}>
+                                  </div>
+                                  <div className="md:col-span-12">
                                     <Button component="label" variant="outlined" startIcon={<CloudUpload />} size="small">
                                       Upload Variant Images
                                       <input hidden type="file" accept="image/*" multiple onChange={(e) => handleVariantFiles(i, e.target.files)} />
@@ -489,8 +489,8 @@ export default function EditProductPage() {
                                         ))}
                                       </Box>
                                     )}
-                                  </Grid>
-                                </Grid>
+                                  </div>
+                                </div>
                               </CardContent>
                             </Card>
                           ))}
@@ -501,10 +501,10 @@ export default function EditProductPage() {
                       </AccordionDetails>
                     </Accordion>
                   </Stack>
-                </Grid>
+                </div>
 
                 {/* Right column */}
-                <Grid item xs={12} lg={4}>
+                <div className="lg:col-span-4">
                   <Stack spacing={4}>
                     <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
                       <CardContent>
@@ -602,28 +602,28 @@ export default function EditProductPage() {
                           <LocalOffer color="primary" />
                           Discount & Coupon
                         </Typography>
-                        <Stack spacing={2}>
-                          <FormControlLabel control={<Switch checked={applyDiscount} onChange={(e) => setApplyDiscount(e.target.checked)} />} label="Apply Discount" />
+                        <div className="grid gap-2 md:grid-cols-12">
+                          <FormControlLabel control={<Switch checked={applyDiscount} onChange={(e) => setApplyDiscount(e.target.checked)} />} label="Apply Discount" className="md:col-span-12" />
                           {applyDiscount && (
-                            <Grid container spacing={2}>
-                              <Grid item xs={12} md={6}>
+                            <div className="grid gap-2 md:grid-cols-12">
+                              <div className="md:col-span-6">
                                 <FormControl fullWidth>
                                   <InputLabel>Type</InputLabel>
                                   <Select value={discountType} label="Type" onChange={(e) => setDiscountType(e.target.value as any)}>
                                     {DISCOUNT_TYPES.map((t) => (<MenuItem key={t} value={t}>{t}</MenuItem>))}
                                   </Select>
                                 </FormControl>
-                              </Grid>
-                              <Grid item xs={12} md={6}>
+                              </div>
+                              <div className="md:col-span-6">
                                 <TextField fullWidth label="Value" type="number" value={discountValue} onChange={(e) => setDiscountValue(e.target.value === "" ? "" : Number(e.target.value))} />
-                              </Grid>
-                              <Grid item xs={12} md={6}>
+                              </div>
+                              <div className="md:col-span-6">
                                 <DatePicker label="Expiry" value={discountExpiry} onChange={(v) => setDiscountExpiry(v)} />
-                              </Grid>
-                              <Grid item xs={12} md={6}>
+                              </div>
+                              <div className="md:col-span-6">
                                 <TextField fullWidth label="Usage Limit" type="number" value={usageLimit} onChange={(e) => setUsageLimit(e.target.value === "" ? "" : Number(e.target.value))} />
-                              </Grid>
-                              <Grid item xs={12}>
+                              </div>
+                              <div className="md:col-span-12">
                                 <FormControl fullWidth>
                                   <InputLabel>Select Coupon</InputLabel>
                                   <Select value={selectedCouponId} label="Select Coupon" onChange={(e) => setSelectedCouponId(String(e.target.value))}>
@@ -631,19 +631,18 @@ export default function EditProductPage() {
                                     {coupons.map((c) => (<MenuItem key={c._id} value={c._id!}>{c.code} — {c.type} {c.value}</MenuItem>))}
                                   </Select>
                                 </FormControl>
-                              </Grid>
-                            </Grid>
+                              </div>
+                            </div>
                           )}
-                        </Stack>
+                          </div>
                       </CardContent>
                     </Card>
                   </Stack>
-                </Grid>
-              </Grid>
+                </div>
+              </div>
             </Box>
           </Paper>
         </Container>
       </Box>
     </LocalizationProvider>
-  )
 }
