@@ -27,7 +27,6 @@ import {
   AccordionDetails,
   Container,
 } from "@mui/material"
-import Grid from "@mui/material/Grid"
 import {
   Add,
   Delete,
@@ -349,9 +348,9 @@ export default function EnhancedProductForm() {
             )}
 
             <Box component="form" onSubmit={handleSubmit}>
-              <Grid container spacing={4}>
+              <div className="grid gap-4 lg:grid-cols-12">
                 {/* Left Column - Basic Information */}
-                <Grid item xs={12} lg={8}>
+                <div className="lg:col-span-8">
                   <Stack spacing={4}>
                     {/* Basic Details */}
                     <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
@@ -360,8 +359,8 @@ export default function EnhancedProductForm() {
                           <Description color="primary" />
                           Basic Information
                         </Typography>
-                        <Grid container spacing={3}>
-                          <Grid item xs={12}>
+                        <div className="grid gap-3 md:grid-cols-12">
+                          <div className="md:col-span-12">
                             <TextField
                               fullWidth
                               label="Product Title"
@@ -370,8 +369,8 @@ export default function EnhancedProductForm() {
                               required
                               placeholder="Enter product title"
                             />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <TextField
                               fullWidth
                               label="SKU (Optional)"
@@ -379,8 +378,8 @@ export default function EnhancedProductForm() {
                               onChange={(e) => setSku(e.target.value)}
                               placeholder="Product SKU"
                             />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <FormControl fullWidth>
                               <InputLabel>Status</InputLabel>
                               <Select value={status} label="Status" onChange={(e) => setStatus(e.target.value as any)}>
@@ -391,8 +390,8 @@ export default function EnhancedProductForm() {
                                 ))}
                               </Select>
                             </FormControl>
-                          </Grid>
-                          <Grid item xs={12}>
+                          </div>
+                          <div className="md:col-span-12">
                             <Typography variant="subtitle1" gutterBottom>
                               Description
                             </Typography>
@@ -406,8 +405,8 @@ export default function EnhancedProductForm() {
                                 }}
                               />
                             </Box>
-                          </Grid>
-                        </Grid>
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
 
@@ -418,8 +417,8 @@ export default function EnhancedProductForm() {
                           <AttachMoney color="primary" />
                           Pricing & Inventory
                         </Typography>
-                        <Grid container spacing={3}>
-                          <Grid item xs={12} md={4}>
+                        <div className="grid gap-3 md:grid-cols-12">
+                          <div className="md:col-span-4">
                             <TextField
                               fullWidth
                               label="Price"
@@ -431,8 +430,8 @@ export default function EnhancedProductForm() {
                                 startAdornment: currency === "INR" ? "₹" : "$",
                               }}
                             />
-                          </Grid>
-                          <Grid item xs={12} md={4}>
+                          </div>
+                          <div className="md:col-span-4">
                             <TextField
                               fullWidth
                               label="MRP (Optional)"
@@ -443,8 +442,8 @@ export default function EnhancedProductForm() {
                                 startAdornment: currency === "INR" ? "₹" : "$",
                               }}
                             />
-                          </Grid>
-                          <Grid item xs={12} md={4}>
+                          </div>
+                          <div className="md:col-span-4">
                             <FormControl fullWidth>
                               <InputLabel>Currency</InputLabel>
                               <Select value={currency} label="Currency" onChange={(e) => setCurrency(e.target.value)}>
@@ -455,8 +454,8 @@ export default function EnhancedProductForm() {
                                 ))}
                               </Select>
                             </FormControl>
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <TextField
                               fullWidth
                               label="Stock Quantity"
@@ -467,8 +466,8 @@ export default function EnhancedProductForm() {
                                 startAdornment: <Inventory color="action" />,
                               }}
                             />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <TextField
                               fullWidth
                               label="Tax Rate (%)"
@@ -476,8 +475,8 @@ export default function EnhancedProductForm() {
                               value={taxRate}
                               onChange={(e) => setTaxRate(e.target.value === "" ? "" : Number(e.target.value))}
                             />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <FormControl fullWidth>
                               <InputLabel>Tax</InputLabel>
                               <Select
@@ -493,8 +492,8 @@ export default function EnhancedProductForm() {
                                 ))}
                               </Select>
                             </FormControl>
-                          </Grid>
-                        </Grid>
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
 
@@ -505,8 +504,8 @@ export default function EnhancedProductForm() {
                           <Palette color="primary" />
                           Product Details
                         </Typography>
-                        <Grid container spacing={3}>
-                          <Grid item xs={12} md={6}>
+                        <div className="grid gap-3 md:grid-cols-12">
+                          <div className="md:col-span-6">
                             <TextField
                               fullWidth
                               label="Color"
@@ -514,8 +513,8 @@ export default function EnhancedProductForm() {
                               onChange={(e) => setColor(e.target.value)}
                               placeholder="e.g., Red, Blue, Black"
                             />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <TextField
                               fullWidth
                               label="Size"
@@ -523,8 +522,8 @@ export default function EnhancedProductForm() {
                               onChange={(e) => setSize(e.target.value)}
                               placeholder="e.g., S, M, L, XL"
                             />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <TextField
                               fullWidth
                               label="Material"
@@ -532,8 +531,8 @@ export default function EnhancedProductForm() {
                               onChange={(e) => setMaterial(e.target.value)}
                               placeholder="e.g., Cotton, Polyester"
                             />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <TextField
                               fullWidth
                               label="Weight (kg)"
@@ -541,32 +540,32 @@ export default function EnhancedProductForm() {
                               value={weight}
                               onChange={(e) => setWeight(e.target.value === "" ? "" : Number(e.target.value))}
                             />
-                          </Grid>
-                          <Grid item xs={12} md={4}>
+                          </div>
+                          <div className="md:col-span-4">
                             <TextField
                               fullWidth
                               label="Length (cm)"
                               value={dimensions.length}
                               onChange={(e) => setDimensions((prev) => ({ ...prev, length: e.target.value }))}
                             />
-                          </Grid>
-                          <Grid item xs={12} md={4}>
+                          </div>
+                          <div className="md:col-span-4">
                             <TextField
                               fullWidth
                               label="Width (cm)"
                               value={dimensions.width}
                               onChange={(e) => setDimensions((prev) => ({ ...prev, width: e.target.value }))}
                             />
-                          </Grid>
-                          <Grid item xs={12} md={4}>
+                          </div>
+                          <div className="md:col-span-4">
                             <TextField
                               fullWidth
                               label="Height (cm)"
                               value={dimensions.height}
                               onChange={(e) => setDimensions((prev) => ({ ...prev, height: e.target.value }))}
                             />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <TextField
                               fullWidth
                               label="Warranty"
@@ -574,8 +573,8 @@ export default function EnhancedProductForm() {
                               onChange={(e) => setWarranty(e.target.value)}
                               placeholder="e.g., 1 year manufacturer warranty"
                             />
-                          </Grid>
-                          <Grid item xs={12} md={6}>
+                          </div>
+                          <div className="md:col-span-6">
                             <TextField
                               fullWidth
                               label="Return Policy"
@@ -583,8 +582,8 @@ export default function EnhancedProductForm() {
                               onChange={(e) => setReturnPolicy(e.target.value)}
                               placeholder="e.g., 30 days return policy"
                             />
-                          </Grid>
-                          <Grid item xs={12}>
+                          </div>
+                          <div className="md:col-span-12">
                             <TextField
                               fullWidth
                               label="Shipping Information"
@@ -592,8 +591,8 @@ export default function EnhancedProductForm() {
                               onChange={(e) => setShippingInfo(e.target.value)}
                               placeholder="Special shipping instructions..."
                             />
-                          </Grid>
-                        </Grid>
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
 
@@ -610,8 +609,8 @@ export default function EnhancedProductForm() {
                           {variants.map((variant, i) => (
                             <Card key={i} variant="outlined">
                               <CardContent>
-                                <Grid container spacing={2} alignItems="center">
-                                  <Grid item xs={12} md={2}>
+                                <div className="grid gap-2 md:grid-cols-12 items-center">
+                                  <div className="md:col-span-2">
                                     <TextField
                                       fullWidth
                                       size="small"
@@ -619,8 +618,8 @@ export default function EnhancedProductForm() {
                                       value={variant.sku || ""}
                                       onChange={(e) => updateVariant(i, { sku: e.target.value })}
                                     />
-                                  </Grid>
-                                  <Grid item xs={12} md={2}>
+                                  </div>
+                                  <div className="md:col-span-2">
                                     <TextField
                                       fullWidth
                                       size="small"
@@ -629,8 +628,8 @@ export default function EnhancedProductForm() {
                                       value={variant.price}
                                       onChange={(e) => updateVariant(i, { price: Number(e.target.value) })}
                                     />
-                                  </Grid>
-                                  <Grid item xs={12} md={2}>
+                                  </div>
+                                  <div className="md:col-span-2">
                                     <TextField
                                       fullWidth
                                       size="small"
@@ -639,8 +638,8 @@ export default function EnhancedProductForm() {
                                       value={variant.stock ?? 0}
                                       onChange={(e) => updateVariant(i, { stock: Number(e.target.value) })}
                                     />
-                                  </Grid>
-                                  <Grid item xs={12} md={2}>
+                                  </div>
+                                  <div className="md:col-span-2">
                                     <TextField
                                       fullWidth
                                       size="small"
@@ -648,8 +647,8 @@ export default function EnhancedProductForm() {
                                       value={variant.color || ""}
                                       onChange={(e) => updateVariant(i, { color: e.target.value })}
                                     />
-                                  </Grid>
-                                  <Grid item xs={12} md={2}>
+                                  </div>
+                                  <div className="md:col-span-2">
                                     <TextField
                                       fullWidth
                                       size="small"
@@ -657,13 +656,13 @@ export default function EnhancedProductForm() {
                                       value={variant.size || ""}
                                       onChange={(e) => updateVariant(i, { size: e.target.value })}
                                     />
-                                  </Grid>
-                                  <Grid item xs={12} md={2}>
+                                  </div>
+                                  <div className="md:col-span-2">
                                     <IconButton color="error" onClick={() => removeVariant(i)}>
                                       <Delete />
                                     </IconButton>
-                                  </Grid>
-                                  <Grid item xs={12}>
+                                  </div>
+                                  <div className="md:col-span-12">
                                     <Button component="label" variant="outlined" startIcon={<CloudUpload />} size="small">
                                       Upload Variant Images
                                       <input
@@ -681,8 +680,8 @@ export default function EnhancedProductForm() {
                                         ))}
                                       </Box>
                                     )}
-                                  </Grid>
-                                </Grid>
+                                  </div>
+                                </div>
                               </CardContent>
                             </Card>
                           ))}
@@ -698,10 +697,10 @@ export default function EnhancedProductForm() {
                       </AccordionDetails>
                     </Accordion>
                   </Stack>
-                </Grid>
+                </div>
 
                 {/* Right Column - Categories, Images, Discount */}
-                <Grid item xs={12} lg={4}>
+                <div className="lg:col-span-4">
                   <Stack spacing={4}>
                     {/* Categories & Tags */}
                     <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
@@ -897,8 +896,8 @@ export default function EnhancedProductForm() {
                       </CardContent>
                     </Card>
                   </Stack>
-                </Grid>
-              </Grid>
+                </div>
+              </div>
 
               {/* Action Buttons */}
               <Box display="flex" justifyContent="flex-end" gap={2} mt={4}>

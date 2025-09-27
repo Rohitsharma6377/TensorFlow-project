@@ -28,7 +28,6 @@ import {
   AccordionDetails,
   InputAdornment,
 } from "@mui/material"
-import Grid from "@mui/material/Grid"
 import {
   Store,
   Email,
@@ -411,9 +410,9 @@ export default function EnhancedShopProfile() {
           )}
 
           <Box component="form" id="shop-form" onSubmit={handleSubmit}>
-            <Grid container spacing={4}>
+            <div className="grid gap-4 lg:grid-cols-12">
               {/* Left Column */}
-              <Grid item xs={12} lg={8}>
+              <div className="lg:col-span-8">
                 <Stack spacing={4}>
                   {/* Basic Information */}
                   <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
@@ -422,8 +421,8 @@ export default function EnhancedShopProfile() {
                         <Store color="primary" />
                         Basic Information
                       </Typography>
-                      <Grid container spacing={3}>
-                        <Grid item xs={12}>
+                      <div className="grid gap-3 md:grid-cols-12">
+                        <div className="md:col-span-12">
                           <TextField
                             fullWidth
                             label="Shop Name"
@@ -432,8 +431,8 @@ export default function EnhancedShopProfile() {
                             required
                             placeholder="Enter your shop name"
                           />
-                        </Grid>
-                        <Grid item xs={12}>
+                        </div>
+                        <div className="md:col-span-12">
                           <TextField
                             fullWidth
                             label="Description"
@@ -443,8 +442,8 @@ export default function EnhancedShopProfile() {
                             rows={4}
                             placeholder="Tell customers about your shop..."
                           />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <Box>
                             <Typography variant="body2" color="text.secondary" gutterBottom>
                               Theme Color
@@ -470,8 +469,8 @@ export default function EnhancedShopProfile() {
                               />
                             </Box>
                           </Box>
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="Tags"
@@ -480,8 +479,8 @@ export default function EnhancedShopProfile() {
                             placeholder="e.g., premium, handmade, organic"
                             helperText="Comma separated tags"
                           />
-                        </Grid>
-                      </Grid>
+                        </div>
+                      </div>
 
                       {/* Categories */}
                       <Box mt={3}>
@@ -511,8 +510,8 @@ export default function EnhancedShopProfile() {
                         <Email color="primary" />
                         Contact Information
                       </Typography>
-                      <Grid container spacing={3}>
-                        <Grid item xs={12} md={6}>
+                      <div className="grid gap-3 md:grid-cols-12">
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="Contact Email"
@@ -527,8 +526,8 @@ export default function EnhancedShopProfile() {
                               ),
                             }}
                           />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="Contact Phone"
@@ -542,8 +541,8 @@ export default function EnhancedShopProfile() {
                               ),
                             }}
                           />
-                        </Grid>
-                        <Grid item xs={12}>
+                        </div>
+                        <div className="md:col-span-12">
                           <TextField
                             fullWidth
                             label="Website"
@@ -558,8 +557,8 @@ export default function EnhancedShopProfile() {
                               ),
                             }}
                           />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="Facebook"
@@ -573,8 +572,8 @@ export default function EnhancedShopProfile() {
                               ),
                             }}
                           />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="Instagram"
@@ -588,8 +587,8 @@ export default function EnhancedShopProfile() {
                               ),
                             }}
                           />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="Twitter"
@@ -603,8 +602,8 @@ export default function EnhancedShopProfile() {
                               ),
                             }}
                           />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="YouTube"
@@ -618,8 +617,8 @@ export default function EnhancedShopProfile() {
                               ),
                             }}
                           />
-                        </Grid>
-                      </Grid>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -630,48 +629,48 @@ export default function EnhancedShopProfile() {
                         <LocationOn color="primary" />
                         Shop Address
                       </Typography>
-                      <Grid container spacing={3}>
-                        <Grid item xs={12}>
+                      <div className="grid gap-3 md:grid-cols-12">
+                        <div className="md:col-span-12">
                           <TextField
                             fullWidth
                             label="Street Address"
                             value={address.street}
                             onChange={(e) => setAddress((prev) => ({ ...prev, street: e.target.value }))}
                           />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="City"
                             value={address.city}
                             onChange={(e) => setAddress((prev) => ({ ...prev, city: e.target.value }))}
                           />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="State"
                             value={address.state}
                             onChange={(e) => setAddress((prev) => ({ ...prev, state: e.target.value }))}
                           />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="Pincode"
                             value={address.pincode}
                             onChange={(e) => setAddress((prev) => ({ ...prev, pincode: e.target.value }))}
                           />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="Country"
                             value={address.country}
                             onChange={(e) => setAddress((prev) => ({ ...prev, country: e.target.value }))}
                           />
-                        </Grid>
-                      </Grid>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -682,8 +681,8 @@ export default function EnhancedShopProfile() {
                         <AccountBalance color="primary" />
                         Business Details
                       </Typography>
-                      <Grid container spacing={3}>
-                        <Grid item xs={12} md={6}>
+                      <div className="grid gap-3 md:grid-cols-12">
+                        <div className="md:col-span-6">
                           <FormControl fullWidth>
                             <InputLabel>Business Type</InputLabel>
                             <Select
@@ -697,8 +696,8 @@ export default function EnhancedShopProfile() {
                               <MenuItem value="llp">LLP</MenuItem>
                             </Select>
                           </FormControl>
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="GST Number"
@@ -706,8 +705,8 @@ export default function EnhancedShopProfile() {
                             onChange={(e) => setGstNumber(e.target.value)}
                             placeholder="22AAAAA0000A1Z5"
                           />
-                        </Grid>
-                        <Grid item xs={12} md={6}>
+                        </div>
+                        <div className="md:col-span-6">
                           <TextField
                             fullWidth
                             label="PAN Number"
@@ -715,8 +714,8 @@ export default function EnhancedShopProfile() {
                             onChange={(e) => setPanNumber(e.target.value)}
                             placeholder="AAAAA0000A"
                           />
-                        </Grid>
-                        <Grid item xs={12} md={3}>
+                        </div>
+                        <div className="md:col-span-3">
                           <TextField
                             fullWidth
                             label="Opening Time"
@@ -725,8 +724,8 @@ export default function EnhancedShopProfile() {
                             onChange={(e) => setBusinessHours((prev) => ({ ...prev, open: e.target.value }))}
                             InputLabelProps={{ shrink: true }}
                           />
-                        </Grid>
-                        <Grid item xs={12} md={3}>
+                        </div>
+                        <div className="md:col-span-3">
                           <TextField
                             fullWidth
                             label="Closing Time"
@@ -735,78 +734,77 @@ export default function EnhancedShopProfile() {
                             onChange={(e) => setBusinessHours((prev) => ({ ...prev, close: e.target.value }))}
                             InputLabelProps={{ shrink: true }}
                           />
-                        </Grid>
-                      </Grid>
-                    </CardContent>
-                  </Card>
-                </Stack>
-              </Grid>
-
-              {/* Right Column */}
-              <Grid item xs={12} lg={4}>
-                <Stack spacing={4}>
-                  {/* Media */}
-                  <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>
-                        Shop Media
-                      </Typography>
-                      <Stack spacing={3}>
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" gutterBottom>
-                            Logo
-                          </Typography>
-                          <Button component="label" variant="outlined" startIcon={<CloudUpload />} fullWidth>
-                            Upload Logo
-                            <input
-                              hidden
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-                            />
-                          </Button>
-                          {logoFile && <Chip label={logoFile.name} onDelete={() => setLogoFile(null)} sx={{ mt: 1 }} />}
-                          {logoPreview && (
-                            <Box mt={1}>
-                              <img
-                                src={logoPreview}
-                                alt="Logo preview"
-                                style={{ width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)" }}
-                              />
-                            </Box>
-                          )}
-                        </Box>
-
-                        <Box>
-                          <Typography variant="body2" color="text.secondary" gutterBottom>
-                            Banner
-                          </Typography>
-                          <Button component="label" variant="outlined" startIcon={<CloudUpload />} fullWidth>
-                            Upload Banner
-                            <input
-                              hidden
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => setBannerFile(e.target.files?.[0] || null)}
-                            />
-                          </Button>
-                          {bannerFile && (
-                            <Chip label={bannerFile.name} onDelete={() => setBannerFile(null)} sx={{ mt: 1 }} />
-                          )}
-                          {bannerPreview && (
-                            <Box mt={1}>
-                              <img
-                                src={bannerPreview}
-                                alt="Banner preview"
-                                style={{ width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)" }}
-                              />
-                            </Box>
-                          )}
-                        </Box>
-                      </Stack>
+                        </div>
+                        </div>
                     </CardContent>
                   </Card>
 
+                  {/* Right Column */}
+                  <div className="lg:col-span-4">
+                    <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                      <CardContent>
+                        <Stack spacing={4}>
+                          <Typography variant="h6" gutterBottom>
+                            Shop Media
+                          </Typography>
+                         
+                          <Stack spacing={3}>
+                              <Box>
+                                <Typography variant="body2" color="text.secondary" gutterBottom>
+                                  Logo
+                                </Typography>
+                                <Button component="label" variant="outlined" startIcon={<CloudUpload />} fullWidth>
+                                  Upload Logo
+                                  <input
+                                    hidden
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                                  />
+                                </Button>
+                                {logoFile && <Chip label={logoFile.name} onDelete={() => setLogoFile(null)} sx={{ mt: 1 }} />}
+                                {logoPreview && (
+                                  <Box mt={1}>
+                                    <img
+                                      src={logoPreview}
+                                      alt="Logo preview"
+                                      style={{ width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)" }}
+                                    />
+                                  </Box>
+                                )}
+                              </Box>
+
+                              <Box>
+                                <Typography variant="body2" color="text.secondary" gutterBottom>
+                                  Banner
+                                </Typography>
+                                <Button component="label" variant="outlined" startIcon={<CloudUpload />} fullWidth>
+                                  Upload Banner
+                                  <input
+                                    hidden
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => setBannerFile(e.target.files?.[0] || null)}
+                                  />
+                                </Button>
+                                {bannerFile && (
+                                  <Chip label={bannerFile.name} onDelete={() => setBannerFile(null)} sx={{ mt: 1 }} />
+                                )}
+                                {bannerPreview && (
+                                  <Box mt={1}>
+                                    <img
+                                      src={bannerPreview}
+                                      alt="Banner preview"
+                                      style={{ width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)" }}
+                                    />
+                                  </Box>
+                                )}
+                              </Box>
+                          </Stack>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+</div>
                   {/* Payment Methods */}
                   <Accordion elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
                     <AccordionSummary expandIcon={<ExpandMore />}>
@@ -1325,8 +1323,8 @@ export default function EnhancedShopProfile() {
                     </AccordionDetails>
                   </Accordion>
                 </Stack>
-              </Grid>
-            </Grid>
+              </div>
+            </div>
 
             {/* Action Buttons */}
             <Box display="flex" justifyContent="flex-end" gap={2} mt={4}>
@@ -1350,5 +1348,4 @@ export default function EnhancedShopProfile() {
         </Paper>
       </Container>
     </Box>
-  )
-}
+  )}
