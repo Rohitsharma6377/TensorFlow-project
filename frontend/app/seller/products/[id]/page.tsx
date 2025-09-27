@@ -645,4 +645,5 @@ export default function EditProductPage() {
         </Container>
       </Box>
     </LocalizationProvider>
+  )
 }
