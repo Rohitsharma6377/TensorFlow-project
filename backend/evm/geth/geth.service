@@ -1,0 +1,23 @@
+[Unit]
+Description=IND Geth Node
+After=network-online.target
+
+[Service]
+Type=simple
+User=ind
+Group=ind
+Restart=always
+RestartSec=5
+ExecStart=/usr/bin/geth \
+  --datadir /var/lib/ind-geth \
+  --networkid 13579 \
+  --port 30303 \
+  --http --http.addr 0.0.0.0 --http.port 8545 \
+  --http.api eth,net,web3 \
+  --ws --ws.addr 0.0.0.0 --ws.port 8546 --ws.api eth,net,web3 \
+  --allow-insecure-unlock \
+  --syncmode full \
+  --verbosity 3
+
+[Install]
+WantedBy=multi-user.target
