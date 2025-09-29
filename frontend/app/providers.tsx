@@ -7,6 +7,8 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { hydrate as hydrateWishlist, WishlistItem } from '@/store/slice/wishlistSlice';
 import ThemeProvider from '@/components/theme-provider';
 import { NextUIProvider } from "@nextui-org/react";
+import { AuthProvider } from '@/contexts/AuthContext';
+import { connectSocket } from '@/lib/socket';
 
 // Type guard to validate cart items
 const isValidCartItem = (item: any): item is CartItem => {
@@ -75,13 +77,22 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Pre-warm socket connection when user is authenticated to reduce chat latency
+  useEffect(() => {
+    if (typeof window !== 'undefined' && localStorage.getItem('token')) {
+      connectSocket().catch(() => {});
+    }
+  }, []);
+
   return (
     <Provider store={store}>
-      <NextUIProvider>
-        <ThemeProvider>
-          {children}
-        </ThemeProvider>
-      </NextUIProvider>
+      <AuthProvider>
+        <NextUIProvider>
+          <ThemeProvider>
+            {children}
+          </ThemeProvider>
+        </NextUIProvider>
+      </AuthProvider>
     </Provider>
   );
 }

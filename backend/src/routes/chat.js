@@ -2,6 +2,8 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
+const User = require('../models/User');
+const Shop = require('../models/Shop');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -13,14 +15,33 @@ router.post('/conversations', auth(), [body('participants').isArray({ min: 1 })]
   const participants = req.body.participants.map(String);
   if (!participants.includes(String(req.user.id))) participants.push(String(req.user.id));
   let conv = await Conversation.findOne({ participants: { $all: participants, $size: participants.length } });
-  if (!conv) conv = await Conversation.create({ participants, orderId: req.body.orderId });
+  if (!conv) conv = await Conversation.create({ participants, orderId: req.body.orderId, postId: req.body.postId });
   res.json({ success: true, conversation: conv });
 });
 
 // Get conversations for user
 router.get('/conversations', auth(), async (req, res) => {
-  const convs = await Conversation.find({ participants: req.user.id }).sort({ updatedAt: -1 });
-  res.json({ success: true, conversations: convs });
+  const convs = await Conversation.find({ participants: req.user.id }).sort({ updatedAt: -1 }).lean();
+  // Gather participant info
+  const ids = new Set();
+  for (const c of convs) for (const p of c.participants || []) ids.add(String(p));
+  const users = await User.find({ _id: { $in: Array.from(ids) } })
+    .select('username email profile.fullName profile.avatarUrl role')
+    .lean();
+  const userMap = Object.fromEntries(users.map((u) => [String(u._id), u]));
+  // Gather shops for those users (sellers)
+  const shops = await Shop.find({ owner: { $in: users.map((u) => u._id) } })
+    .select('owner name slug logo')
+    .lean();
+  const shopByOwner = Object.fromEntries(shops.map((s) => [String(s.owner), s]));
+  const enriched = convs.map((c) => ({
+    ...c,
+    participantsInfo: (c.participants || []).map((id) => ({ id, ...(userMap[String(id)] || {}) })),
+    meta: {
+      shops: Object.fromEntries((c.participants || []).map((id) => [String(id), shopByOwner[String(id)] || null])),
+    },
+  }));
+  res.json({ success: true, conversations: enriched });
 });
 
 // Get messages for conversation

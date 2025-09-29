@@ -2,9 +2,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { fetchProduct } from '@/store/slice/productSlice'
-import { addItem } from '@/store/slice/cartSlice'
-import { addToWishlist, addLocal as addWishlistLocal } from '@/store/slice/wishlistSlice'
-import { Button } from 'antd'
+import { addItem, removeItem } from '@/store/slice/cartSlice'
+import { addToWishlist, addLocal as addWishlistLocal, remove as removeWishlist } from '@/store/slice/wishlistSlice'
+import { Button, message } from 'antd'
+import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRounded'
+import FavoriteBorderRounded from '@mui/icons-material/FavoriteBorderRounded'
+import FavoriteRounded from '@mui/icons-material/FavoriteRounded'
+import ShoppingCartRounded from '@mui/icons-material/ShoppingCartRounded'
+import BoltRounded from '@mui/icons-material/BoltRounded'
+import { ShopsAPI, SocialAPI } from '@/lib/api'
+import Link from 'next/link'
 
 type Variant = {
   price?: number;
@@ -17,6 +24,8 @@ type Variant = {
 export default function ProductPage({ params }: { params: { id: string } }) {
   const dispatch = useAppDispatch()
   const { current, status } = useAppSelector(s => s.products)
+  const cartItems = useAppSelector(s => s.cart.items)
+  const wishlistItems = useAppSelector(s => s.wishlist.items)
 
   // Gallery state
   const [activeIdx, setActiveIdx] = useState(0)
@@ -25,10 +34,38 @@ export default function ProductPage({ params }: { params: { id: string } }) {
 
   // Variant state
   const [variantIndex, setVariantIndex] = useState<number | null>(null)
+  const [shopCard, setShopCard] = useState<{ _id: string; name: string; slug: string; logo?: { url?: string }; owner: string } | null>(null)
+  const [inWishlist, setInWishlist] = useState(false)
+  const [isFollowing, setIsFollowing] = useState<boolean | null>(null)
 
   useEffect(() => {
     dispatch(fetchProduct(params.id))
   }, [dispatch, params.id])
+
+  // Load shop info for card (name/logo/slug) once product is available
+  useEffect(() => {
+    (async () => {
+      try {
+        const sid = (current as any)?.shopId
+        if (!sid) return
+        const r = await ShopsAPI.bulk([String(sid)])
+        const s = r?.shops?.[0] || null
+        setShopCard(s)
+        try {
+          const f = await SocialAPI.following()
+          const ids = new Set<string>((f?.shops || []).map(String))
+          setIsFollowing(ids.has(String(s?._id)))
+        } catch { setIsFollowing(null) }
+      } catch {}
+    })()
+  }, [current])
+
+  // Reflect wishlist state from Redux when switching products
+  useEffect(() => {
+    const pid = String(current?._id || '')
+    const present = !!wishlistItems.find?.((i:any)=>String(i.productId)===pid)
+    setInWishlist(present)
+  }, [current?._id, wishlistItems])
 
   // Build image array from selected variant or base product
   const images: string[] = useMemo(() => {
@@ -65,8 +102,33 @@ export default function ProductPage({ params }: { params: { id: string } }) {
 
   const onAddToCart = () => {
     if (!current) return
+    // If product has variants, require selection first
+    if (Array.isArray(current.variants) && current.variants.length > 0 && variantIndex === null) {
+      message.warning('Please select a variant');
+      return;
+    }
     const image = images[activeIdx]
     dispatch(addItem({ productId: current._id!, title: current.title, price, qty: 1, image }))
+    message.success('Added to cart')
+  }
+
+  const onRemoveFromCart = () => {
+    if (!current) return
+    dispatch(removeItem(current._id!))
+    message.info('Removed from cart')
+  }
+
+  const onFollowToggle = async () => {
+    if (!shopCard?._id) return
+    try {
+      if (isFollowing) {
+        await SocialAPI.unfollow(shopCard._id)
+        setIsFollowing(false)
+      } else {
+        await SocialAPI.follow(shopCard._id)
+        setIsFollowing(true)
+      }
+    } catch {}
   }
 
   const onBuyNow = () => {
@@ -75,19 +137,57 @@ export default function ProductPage({ params }: { params: { id: string } }) {
     if (typeof window !== 'undefined') window.location.href = '/cart'
   }
 
-  const onWishlist = async () => {
-    try {
-      await dispatch(addToWishlist({ productId: params.id })).unwrap()
-    } catch {
-      dispatch(addWishlistLocal({ productId: params.id, title: current?.title || '' }))
+  const onWishlistToggle = async () => {
+    if (!current) return
+    const pid = String(current._id)
+    if (inWishlist) {
+      dispatch(removeWishlist(pid))
+      setInWishlist(false)
+      message.info('Removed from wishlist')
+      return
     }
+    try {
+      await dispatch(addToWishlist({ productId: pid })).unwrap()
+      setInWishlist(true)
+      message.success('Added to wishlist')
+    } catch {
+      dispatch(addWishlistLocal({ productId: pid, title: current?.title || '' }))
+      setInWishlist(true)
+      message.success('Added to wishlist')
+    }
+  }
+
+  const onChatWithShop = async () => {
+    try {
+      if (!current) return
+      // Add to cart before opening chat (so the item is saved for the user)
+      onAddToCart()
+      // Resolve shop owner and slug from product.shopId using bulk
+      const resp = await ShopsAPI.bulk([String((current as any).shopId)])
+      const info = resp?.shops?.[0]
+      if (!info?.owner) return
+      const ownerId = String(info.owner)
+      const shopSlug = info.slug
+
+      // Prefill message payload stored so Chat page can auto-send once
+      const prefill = {
+        productId: current._id,
+        text: `Hi! I'm interested in this product: /products/${current._id}`,
+        image: (current.mainImage || (Array.isArray(current.images) && current.images[0])) || undefined,
+      }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('chatPrefill', JSON.stringify(prefill))
+      }
+      const url = `/chat?seller=${encodeURIComponent(ownerId)}&shop=${encodeURIComponent(shopSlug)}&product=${encodeURIComponent(current._id!)}`
+      if (typeof window !== 'undefined') window.location.href = url
+    } catch {}
   }
 
   return (
     <div className="space-y-6">
       {status === 'loading' && <p className="text-slate-500">Loading...</p>}
       {current && (
-        <div className="grid gap-8 lg:grid-cols-2">
+        <div className="px-2.5 grid gap-8 lg:grid-cols-2">
           {/* Gallery */}
           <div className="space-y-3">
             <div
@@ -150,15 +250,57 @@ export default function ProductPage({ params }: { params: { id: string } }) {
               )}
             </div>
 
+            {/* Shop card */}
+            {shopCard && (
+              <div className="flex items-center justify-between p-3 border rounded-lg bg-white shadow-sm px-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-full bg-sky-100 overflow-hidden flex items-center justify-center">
+                    {shopCard.logo && (shopCard.logo as any).url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={(shopCard.logo as any).url} alt="shop" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-sky-700 text-sm">{shopCard.name?.[0] || 'S'}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-semibold truncate">{shopCard.name}</div>
+                    <div className="text-xs text-slate-500 truncate">@{shopCard.slug}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link href={`/shops/${shopCard.slug}`} className="text-sm text-emerald-700 hover:underline">View</Link>
+                  {isFollowing === false && (
+                    <Button onClick={onFollowToggle}>Follow</Button>
+                  )}
+                  {isFollowing === true && (
+                    <span className="text-xs text-emerald-600"> </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Actions */}
-            <div className="flex flex-wrap gap-3">
-              <Button type="primary" onClick={onAddToCart}>Add to Cart</Button>
-              <Button onClick={onWishlist}>Wishlist</Button>
-              <Button type="default" onClick={onBuyNow}>Buy Now</Button>
+            <div className="flex flex-wrap items-center gap-3">
+              {(() => {
+                const inCart = cartItems.some((it: any) => String(it.productId) === String(current?._id))
+                return inCart ? (
+                  <Button danger onClick={onRemoveFromCart} icon={<ShoppingCartRounded fontSize="small" />}>Remove from Cart</Button>
+                ) : (
+                  <Button type="primary" onClick={onAddToCart} icon={<ShoppingCartRounded fontSize="small" />}>Add to Cart</Button>
+                )
+              })()}
+
+              <Button onClick={onWishlistToggle} shape="circle" aria-label={inWishlist ? 'Remove from wishlist' : 'Add to wishlist'} icon={inWishlist ? <FavoriteRounded fontSize="small" className="text-sky-600"/> : <FavoriteBorderRounded fontSize="small" /> } />
+              <Button type="default" onClick={onBuyNow} icon={<BoltRounded fontSize="small" />}>Buy Now</Button>
+              <Button onClick={onChatWithShop} icon={<ChatBubbleOutlineRounded fontSize="small" />}>
+                Chat with Shop
+              </Button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Removed sticky mobile action bar to avoid duplicate Add/Chat/Buy buttons */}
     </div>
   )
 }

@@ -512,6 +512,40 @@ export const WishlistAPI = {
   async add(productId: string) {
     return api<{ success: boolean }>(`/api/v1/products/${productId}/wishlist`, { method: 'POST' });
   },
+  async remove(productId: string) {
+    return api<{ success: boolean }>(`/api/v1/products/${productId}/wishlist`, { method: 'DELETE' });
+  },
+  async list() {
+    return api<{ success: boolean; wishlist: any[] }>(`/api/v1/wishlist`, { method: 'GET' });
+  },
+};
+
+// Wishlist Collections API
+export const WishlistCollectionsAPI = {
+  async list() {
+    return api<{ success: boolean; collections: Array<{ _id: string; name: string; items: Array<{ product: string | any }> }> }>(
+      `/api/v1/wishlist/collections`,
+      { method: 'GET' }
+    );
+  },
+  async create(name: string) {
+    return api<{ success: boolean; collection: { _id: string; name: string } }>(`/api/v1/wishlist/collections`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+  },
+  async addItem(collectionId: string, productId: string) {
+    return api<{ success: boolean; collection: any }>(`/api/v1/wishlist/collections/${collectionId}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ productId }),
+    });
+  },
+  async removeItem(collectionId: string, productId: string) {
+    return api<{ success: boolean; collection: any }>(`/api/v1/wishlist/collections/${collectionId}/items`, {
+      method: 'DELETE',
+      body: JSON.stringify({ productId }),
+    });
+  },
 };
 
 export const PostsAPI = {
@@ -851,6 +885,24 @@ export const ShopsAPI = {
     const path = `/api/v1/shops${q ? `?${q}` : ''}`;
     return api<{ success: boolean; shops: ShopListItemDTO[] }>(path, { method: 'GET', skipAuth: true });
   },
+  async getBySlug(slug: string) {
+    return api<{ success: boolean; shop: { _id: string; name: string; slug: string } }>(`/api/v1/shops/${slug}`, {
+      method: 'GET',
+      skipAuth: true,
+    });
+  },
+  async report(shopId: string, payload: { reason: string; details?: string; conversation?: string }) {
+    return api<{ success: boolean; report: any }>(`/api/v1/shops/${shopId}/report`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+  async bulk(ids: string[]) {
+    return api<{ success: boolean; shops: Array<{ _id: string; name: string; slug: string; logo?: { url: string }; owner: string }> }>(
+      `/api/v1/shops/bulk`,
+      { method: 'POST', body: JSON.stringify({ ids }) }
+    );
+  },
 };
 
 // Web3/Blockchain API
@@ -936,5 +988,30 @@ export const Web3API = {
     vout: Array<{ address: string; value: number }>
   ) {
     return Web3API.txSubmit(vin, vout);
+  },
+};
+
+// Chat API
+export const ChatAPI = {
+  async ensureConversation(participants: string[], opts?: { orderId?: string; postId?: string }) {
+    return api<{ success: boolean; conversation: { _id: string } }>(`/api/v1/chat/conversations`, {
+      method: 'POST',
+      body: JSON.stringify({ participants, ...(opts || {}) }),
+    });
+  },
+  async listConversations() {
+    return api<{ success: boolean; conversations: any[] }>(`/api/v1/chat/conversations`, { method: 'GET' });
+  },
+  async getMessages(conversationId: string, page = 1, limit = 50) {
+    const q = new URLSearchParams({ page: String(page), limit: String(limit) }).toString();
+    return api<{ success: boolean; messages: any[] }>(`/api/v1/chat/conversations/${conversationId}/messages?${q}`, {
+      method: 'GET',
+    });
+  },
+  async sendMessage(conversationId: string, payload: { text?: string; attachments?: any[] }) {
+    return api<{ success: boolean; message: any }>(`/api/v1/chat/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   },
 };

@@ -35,6 +35,7 @@ const shipmentsRouter = require('./src/routes/shipments');
 const deliveryRouter = require('./src/routes/delivery');
 const chatRouter = require('./src/routes/chat');
 const uploadsRouter = require('./src/routes/uploads');
+const cartRouter = require('./src/routes/cart');
 const paymentsRouter = require('./src/routes/payments');
 const feedRouter = require('./src/routes/feed');
 const recommendationsRouter = require('./src/routes/recommendations');
@@ -44,6 +45,7 @@ const searchRouter = require('./src/routes/search');
 const escrowRouter = require('./src/routes/escrow');
 const mlRouter = require('./src/routes/ml');
 const wishlistRouter = require('./src/routes/wishlist');
+const wishlistCollectionsRouter = require('./src/routes/wishlistCollections');
 const web3Router = require('./src/routes/web3');
 
 // Models for cron job
@@ -100,7 +102,6 @@ app.use('/api/v1/shops', shopsRouter);
 app.use('/api/v1/products', productsRouter);
 app.use('/api/v1/posts', postsRouter);
 app.use('/api/v1/stories', storiesRouter);
-app.use('/api/v1/reels', reelsRouter);
 app.use('/api/v1/social', socialRouter);
 app.use('/api/v1/orders', ordersRouter);
 app.use('/api/v1/shipments', shipmentsRouter);
@@ -112,16 +113,15 @@ app.use('/api/v1/feed', feedRouter);
 app.use('/api/v1/recommendations', recommendationsRouter);
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/users', usersRouter);
-app.use('/api/v1/search', searchRouter);
 app.use('/api/v1/escrow', escrowRouter);
 app.use('/api/v1/ml', mlRouter);
 app.use('/api/v1', wishlistRouter);
+app.use('/api/v1/wishlist/collections', wishlistCollectionsRouter);
 app.use('/api/v1/brands', brandsRouter);
 app.use('/api/v1/categories', categoriesRouter);
 app.use('/api/v1/tags', tagsRouter);
 app.use('/api/v1/taxes', taxesRouter);
 app.use('/api/v1/coupons', couponsRouter);
-app.use('/api/v1/web3', web3Router);
 
 // 404 handler
 app.use((req, res) => {

@@ -5,6 +5,7 @@ import productsReducer from './slice/productSlice'
 import cartReducer from './slice/cartSlice'
 import feedReducer from './slice/feedSlice'
 import wishlistReducer from './slice/wishlistSlice'
+import wishlistCollectionsReducer from './slice/wishlistCollectionsSlice'
 import userReducer from './slice/userSlice'
 import brandReducer from './slice/brandSlice'
 import categoryReducer from './slice/categorySlice'
@@ -24,6 +25,7 @@ export const store = configureStore({
     cart: cartReducer,
     feed: feedReducer,
     wishlist: wishlistReducer,
+    wishlistCollections: wishlistCollectionsReducer,
     user: userReducer,
     brands: brandReducer,
     categories: categoryReducer,

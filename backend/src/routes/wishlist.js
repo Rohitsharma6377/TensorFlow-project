@@ -11,7 +11,19 @@ router.post('/products/:id/wishlist', auth(), asyncHandler(async (req, res) => {
   res.json({ success: true });
 }));
 
-// GET /api/v1/users/:id/wishlist
+// DELETE /api/v1/products/:id/wishlist
+router.delete('/products/:id/wishlist', auth(), asyncHandler(async (req, res) => {
+  await Wishlist.deleteOne({ user: req.user.id, product: req.params.id });
+  res.json({ success: true });
+}));
+
+// GET /api/v1/wishlist (current user)
+router.get('/wishlist', auth(), asyncHandler(async (req, res) => {
+  const items = await Wishlist.find({ user: req.user.id }).populate('product');
+  res.json({ success: true, wishlist: items });
+}));
+
+// GET /api/v1/users/:id/wishlist (admin/same user)
 router.get('/users/:id/wishlist', auth(), asyncHandler(async (req, res) => {
   if (req.user.id !== req.params.id && !['admin','superadmin'].includes(req.user.role)) {
     return res.status(403).json({ success: false, message: 'Forbidden' });

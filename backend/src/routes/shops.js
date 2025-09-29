@@ -5,6 +5,8 @@ const auth = require('../middleware/auth');
 const { requireRole } = require('../middleware/roles');
 const Follow = require('../models/Follow');
 const ShopReview = require('../models/ShopReview');
+const ShopReport = require('../models/ShopReport');
+const Message = require('../models/Message');
 
 const router = express.Router();
 
@@ -25,9 +27,44 @@ router.get('/', async (req, res) => {
       .limit(lim)
       .lean();
     return res.json({ success: true, shops });
+
   } catch (err) {
     console.error('List shops error', err);
     return res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Bulk fetch shops by IDs
+router.post('/bulk', async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    if (!ids.length) return res.json({ success: true, shops: [] });
+    const shops = await Shop.find({ _id: { $in: ids } })
+      .select('name slug logo owner')
+      .lean();
+    return res.json({ success: true, shops });
+  } catch (err) {
+    console.error('Bulk shops error', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Report a shop (authenticated users). Accepts { reason, details?, conversation? }
+router.post('/:id/report', auth(), [body('reason').isString().isLength({ min: 3 })], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+  try {
+    const doc = await ShopReport.create({
+      shop: req.params.id,
+      reporter: req.user.id,
+      reason: req.body.reason,
+      details: req.body.details,
+      conversation: req.body.conversation || undefined,
+    });
+    res.status(201).json({ success: true, report: doc });
+  } catch (err) {
+    console.error('Report shop error', err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
@@ -249,6 +286,71 @@ router.post('/:id/reviews', auth(), [body('rating').isInt({ min: 1, max: 5 })], 
     res.status(201).json({ success: true, review: doc });
   } catch (err) {
     console.error('Create/update review error', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ===== Superadmin/Admin report management =====
+// List reports
+router.get('/admin/reports', auth(['admin', 'superadmin']), requireRole(['admin', 'superadmin']), async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status } = req.query;
+    const p = Math.max(parseInt(page, 10) || 1, 1);
+    const lim = Math.min(parseInt(limit, 10) || 20, 100);
+    const match = {};
+    if (status && ['open', 'reviewing', 'resolved'].includes(String(status))) match.status = status;
+    const [items, total] = await Promise.all([
+      ShopReport.find(match)
+        .sort({ createdAt: -1 })
+        .skip((p - 1) * lim)
+        .limit(lim)
+        .populate('shop', 'name slug')
+        .populate('reporter', 'username email')
+        .lean(),
+      ShopReport.countDocuments(match),
+    ]);
+    res.json({ success: true, reports: items, total, page: p, limit: lim });
+  } catch (err) {
+    console.error('List shop reports error', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Get a single report with last 10 messages of its conversation (if any)
+router.get('/admin/reports/:id', auth(['admin', 'superadmin']), requireRole(['admin', 'superadmin']), async (req, res) => {
+  try {
+    const rep = await ShopReport.findById(req.params.id)
+      .populate('shop', 'name slug')
+      .populate('reporter', 'username email')
+      .lean();
+    if (!rep) return res.status(404).json({ success: false, message: 'Report not found' });
+    let lastMessages = [];
+    if (rep.conversation) {
+      lastMessages = await Message.find({ conversation: rep.conversation })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean();
+      lastMessages.reverse();
+    }
+    res.json({ success: true, report: rep, lastMessages });
+  } catch (err) {
+    console.error('Get report error', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Update a report status
+router.put('/admin/reports/:id', auth(['admin', 'superadmin']), requireRole(['admin', 'superadmin']), async (req, res) => {
+  try {
+    const { status } = req.body || {};
+    if (!['open', 'reviewing', 'resolved'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+    const updated = await ShopReport.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    if (!updated) return res.status(404).json({ success: false, message: 'Report not found' });
+    res.json({ success: true, report: updated });
+  } catch (err) {
+    console.error('Update report error', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
