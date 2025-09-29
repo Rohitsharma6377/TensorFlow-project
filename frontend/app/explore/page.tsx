@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { PostDTO } from "@/lib/api";
@@ -19,7 +19,7 @@ type Product = {
   images?: string[];
 };
 
-export default function ExplorePage() {
+function ExploreClient() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
@@ -383,5 +383,13 @@ export default function ExplorePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ExplorePage() {
+  return (
+    <Suspense fallback={<div className="max-w-6xl mx-auto px-4 py-6 text-sm text-slate-500">Loading…</div>}>
+      <ExploreClient />
+    </Suspense>
   );
 }

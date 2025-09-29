@@ -715,96 +715,67 @@ export default function EnhancedShopProfile() {
                             placeholder="AAAAA0000A"
                           />
                         </div>
-                        <div className="md:col-span-3">
-                          <TextField
-                            fullWidth
-                            label="Opening Time"
-                            type="time"
-                            value={businessHours.open}
-                            onChange={(e) => setBusinessHours((prev) => ({ ...prev, open: e.target.value }))}
-                            InputLabelProps={{ shrink: true }}
-                          />
-                        </div>
-                        <div className="md:col-span-3">
-                          <TextField
-                            fullWidth
-                            label="Closing Time"
-                            type="time"
-                            value={businessHours.close}
-                            onChange={(e) => setBusinessHours((prev) => ({ ...prev, close: e.target.value }))}
-                            InputLabelProps={{ shrink: true }}
-                          />
-                        </div>
-                        </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Right Column */}
-                  <div className="lg:col-span-4">
-                    <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
-                      <CardContent>
-                        <Stack spacing={4}>
-                          <Typography variant="h6" gutterBottom>
-                            Shop Media
-                          </Typography>
-                         
-                          <Stack spacing={3}>
-                              <Box>
-                                <Typography variant="body2" color="text.secondary" gutterBottom>
-                                  Logo
-                                </Typography>
-                                <Button component="label" variant="outlined" startIcon={<CloudUpload />} fullWidth>
-                                  Upload Logo
-                                  <input
-                                    hidden
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
-                                  />
-                                </Button>
-                                {logoFile && <Chip label={logoFile.name} onDelete={() => setLogoFile(null)} sx={{ mt: 1 }} />}
-                                {logoPreview && (
-                                  <Box mt={1}>
-                                    <img
-                                      src={logoPreview}
-                                      alt="Logo preview"
-                                      style={{ width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)" }}
-                                    />
-                                  </Box>
-                                )}
+                        {/* Logo Upload */}
+                        <div className="md:col-span-6">
+                          <Box>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                              Logo
+                            </Typography>
+                            <Button component="label" variant="outlined" startIcon={<CloudUpload />} fullWidth>
+                              Upload Logo
+                              <input
+                                hidden
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                              />
+                            </Button>
+                            {logoFile && <Chip label={logoFile.name} onDelete={() => setLogoFile(null)} sx={{ mt: 1 }} />}
+                            {logoPreview && (
+                              <Box mt={1}>
+                                <img
+                                  src={logoPreview}
+                                  alt="Logo preview"
+                                  style={{ width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)" }}
+                                />
                               </Box>
+                            )}
+                          </Box>
+                        </div>
 
-                              <Box>
-                                <Typography variant="body2" color="text.secondary" gutterBottom>
-                                  Banner
-                                </Typography>
-                                <Button component="label" variant="outlined" startIcon={<CloudUpload />} fullWidth>
-                                  Upload Banner
-                                  <input
-                                    hidden
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => setBannerFile(e.target.files?.[0] || null)}
-                                  />
-                                </Button>
-                                {bannerFile && (
-                                  <Chip label={bannerFile.name} onDelete={() => setBannerFile(null)} sx={{ mt: 1 }} />
-                                )}
-                                {bannerPreview && (
-                                  <Box mt={1}>
-                                    <img
-                                      src={bannerPreview}
-                                      alt="Banner preview"
-                                      style={{ width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)" }}
-                                    />
-                                  </Box>
-                                )}
+                        {/* Banner Upload */}
+                        <div className="md:col-span-6">
+                          <Box>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                              Banner
+                            </Typography>
+                            <Button component="label" variant="outlined" startIcon={<CloudUpload />} fullWidth>
+                              Upload Banner
+                              <input
+                                hidden
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setBannerFile(e.target.files?.[0] || null)}
+                              />
+                            </Button>
+                            {bannerFile && (
+                              <Chip label={bannerFile.name} onDelete={() => setBannerFile(null)} sx={{ mt: 1 }} />
+                            )}
+                            {bannerPreview && (
+                              <Box mt={1}>
+                                <img
+                                  src={bannerPreview}
+                                  alt="Banner preview"
+                                  style={{ width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(0,0,0,0.12)" }}
+                                />
                               </Box>
-                          </Stack>
-                          </Stack>
-                        </CardContent>
+                            )}
+                          </Box>
+                        </div>
+                        </div>
+                      </CardContent>
                       </Card>
-</div>
+
                   {/* Payment Methods */}
                   <Accordion elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
                     <AccordionSummary expandIcon={<ExpandMore />}>
@@ -1323,9 +1294,8 @@ export default function EnhancedShopProfile() {
                     </AccordionDetails>
                   </Accordion>
                 </Stack>
+                </div>
               </div>
-            </div>
-
             {/* Action Buttons */}
             <Box display="flex" justifyContent="flex-end" gap={2} mt={4}>
               <Button variant="outlined" disabled={loading || shopLoading}>
@@ -1348,4 +1318,5 @@ export default function EnhancedShopProfile() {
         </Paper>
       </Container>
     </Box>
-  )}
+  );
+}

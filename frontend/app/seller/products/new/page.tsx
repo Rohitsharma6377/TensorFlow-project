@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+import React, { ComponentType } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
@@ -44,8 +44,11 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker"
 import { LocalizationProvider } from "@mui/x-date-pickers"
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs"
 import dayjs from "dayjs"
-import ClassicEditor from "@ckeditor/ckeditor5-build-classic"
-import { CKEditor } from "@ckeditor/ckeditor5-react"
+// Dynamically import CKEditor only on the client to avoid SSR window reference
+const CKEditor: any = dynamic(
+  () => import("@ckeditor/ckeditor5-react").then((m) => m.CKEditor as any),
+  { ssr: false }
+)
 import { CouponsAPI, ProductAPI, TaxesAPI, type CouponDTO, type TaxDTO } from "@/lib/api"
 import { useAppSelector, useAppDispatch } from "@/store"
 import { fetchMyShop } from "@/store/slice/shopSlice"
@@ -72,6 +75,8 @@ export default function EnhancedProductForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  // CKEditor build (client-only)
+  const [Editor, setEditor] = useState<any>(null)
 
   // Basic product fields
   const [title, setTitle] = useState("")
@@ -141,6 +146,20 @@ export default function EnhancedProductForm() {
   const [attributes, setAttributes] = useState<Record<string, any>>({})
 
   const canSave = title.trim().length > 1 && price > 0 && !loading
+
+  // Load CKEditor Classic build only on client
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const mod: any = await import("@ckeditor/ckeditor5-build-classic")
+        if (mounted) setEditor(mod?.default ?? mod)
+      } catch (e) {
+        // noop: editor optional
+      }
+    })()
+    return () => { mounted = false }
+  }, [])
 
   const addVariant = () => {
     setVariants((v) => [...v, { sku: "", price: 0, stock: 0, color: "", size: "" }])
@@ -396,14 +415,25 @@ export default function EnhancedProductForm() {
                               Description
                             </Typography>
                             <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1, p: 1 }}>
-                              <CKEditor
-                                editor={ClassicEditor as any}
-                                data={description}
-                                onChange={(_evt: any, editor: any) => {
-                                  const data = editor.getData?.() || ""
-                                  setDescription(data)
-                                }}
-                              />
+                              {Editor ? (
+                                <CKEditor
+                                  editor={Editor}
+                                  data={description}
+                                  onChange={(_evt: any, editor: any) => {
+                                    const data = editor.getData?.() || ""
+                                    setDescription(data)
+                                  }}
+                                />
+                              ) : (
+                                <TextField
+                                  fullWidth
+                                  multiline
+                                  minRows={4}
+                                  placeholder="Enter description..."
+                                  value={description}
+                                  onChange={(e) => setDescription(e.target.value)}
+                                />
+                              )}
                             </Box>
                           </div>
                         </div>
