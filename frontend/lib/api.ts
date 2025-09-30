@@ -625,6 +625,50 @@ export const PostsAPI = {
   },
 };
 
+// Stories API
+export interface StoryDTO {
+  _id: string;
+  shop: string;
+  media: string;
+  cta?: string;
+  product?: string | { _id: string; title?: string; mainImage?: string; price?: number };
+  expiresAt?: string;
+  createdAt?: string;
+}
+
+export const StoriesAPI = {
+  async listByShop(shopId: string) {
+    return api<{ success: boolean; stories: StoryDTO[] }>(`/api/v1/stories/${shopId}`, { method: 'GET' });
+  },
+  async createMultipart(payload: {
+    shop: string;
+    file: File; // image or video
+    product?: string;
+    cta?: string;
+    expiresAt?: string; // ISO
+  }) {
+    const fd = new FormData();
+    fd.append('file', payload.file);
+    fd.append('folder', 'stories');
+    const uploaded = await api<{ success: boolean; url?: string; location?: string; path?: string }>(`/api/v1/uploads`, {
+      method: 'POST',
+      body: fd as any,
+    });
+    const mediaUrl = (uploaded as any).url || (uploaded as any).location || (uploaded as any).path;
+    const body: any = { shop: payload.shop, media: mediaUrl };
+    if (payload.product) body.product = payload.product;
+    if (payload.cta) body.cta = payload.cta;
+    if (payload.expiresAt) body.expiresAt = payload.expiresAt;
+    return api<{ success: boolean; story: StoryDTO }>(`/api/v1/stories`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+  async like(storyId: string) {
+    return api<{ success: boolean; liked: boolean; story: StoryDTO }>(`/api/v1/stories/${storyId}/like`, { method: 'POST' });
+  },
+};
+
 // Brand/Category/Tag DTOs and APIs
 export interface BrandDTO {
   _id?: string;

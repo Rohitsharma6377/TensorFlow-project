@@ -24,25 +24,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="theme-color" content="#ecfdf5" media="(prefers-color-scheme: light)" />
         <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         {/* Leaflet for map picker */}
         <link
           rel="stylesheet"
           href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-          crossOrigin=""
-        />
-        {/* 3D model viewer for GLB/GLTF previews */}
-        <Script
-          id="model-viewer"
-          src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"
-          strategy="afterInteractive"
-          type="module"
-        />
-        <Script
-          id="leaflet-js"
-          src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          strategy="afterInteractive"
           crossOrigin=""
         />
       </head>
@@ -69,7 +56,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </Providers>
         {/* Global toast notifications */}
         <Toaster />
+        {/* 3D model viewer for GLB/GLTF previews */}
+        <Script
+          id="model-viewer"
+          src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"
+          strategy="afterInteractive"
+          type="module"
+        />
+        <Script
+          id="leaflet-js"
+          src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          strategy="afterInteractive"
+          crossOrigin=""
+        />
       </body>
     </html>
   );
 }
+

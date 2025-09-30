@@ -40,14 +40,20 @@ import {
 } from "@mui/icons-material"
 import { useAppDispatch, useAppSelector } from "@/store"
 import { fetchMyShop } from "@/store/slice/shopSlice"
-import { ProductAPI, type ProductDTO } from "@/lib/api"
+import { ProductAPI, type ProductDTO, ChatAPI, AuthAPI } from "@/lib/api"
 import { createPostMultipart, fetchPosts, deletePost, setPostStatus, updatePostMultipart, type PostItem } from "@/store/slice/postSlice"
+import { fetchStoriesByShop, createStoryMultipart } from "@/store/slice/storySlice"
+import Link from "next/link"
+import StoryViewer from "@/components/feed/StoryViewer"
+import { useRouter } from "next/navigation"
 
 export default function SellerPostsPage() {
   const dispatch = useAppDispatch()
+  const router = useRouter()
   const shop = useAppSelector((s: any) => s.shop?.shop)
   const shopId = shop?._id || shop?.id || shop?.shop?._id || ""
   const posts = useAppSelector((s: any) => s.posts?.items || []) as PostItem[]
+  const stories = useAppSelector((s: any) => s.stories?.items || []) as any[]
 
   const [caption, setCaption] = useState("")
   const [type, setType] = useState<"product" | "lifestyle">("product")
@@ -65,6 +71,16 @@ export default function SellerPostsPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // Story states
+  const [openStoryModal, setOpenStoryModal] = useState(false)
+  const [storyFile, setStoryFile] = useState<File | null>(null)
+  const [storyPreview, setStoryPreview] = useState<string>("")
+  const [storyProductId, setStoryProductId] = useState("")
+  const [storyCTA, setStoryCTA] = useState("")
+  const [storyExpiresAt, setStoryExpiresAt] = useState<string>("")
+  const [isStoryViewerOpen, setIsStoryViewerOpen] = useState(false)
+  const [viewerStoryIndex, setViewerStoryIndex] = useState(0)
+
   // UI state: modal and editing
   const [openModal, setOpenModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -80,6 +96,7 @@ export default function SellerPostsPage() {
   useEffect(() => {
     if (!shopId) return
     dispatch(fetchPosts({ shop: shopId, status: statusFilter === 'all' ? undefined as any : statusFilter }))
+    dispatch(fetchStoriesByShop(shopId))
   }, [shopId, statusFilter, dispatch])
 
   // Load products for selection
@@ -94,6 +111,59 @@ export default function SellerPostsPage() {
       }
     })()
   }, [shopId])
+
+  // Story previews
+  useEffect(() => {
+    if (!storyFile) { setStoryPreview(""); return }
+    const url = URL.createObjectURL(storyFile)
+    setStoryPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [storyFile])
+
+  const handleCreateStory = async () => {
+    if (!shopId || !storyFile) return
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const action = await dispatch(createStoryMultipart({ shop: shopId, file: storyFile, product: storyProductId || undefined, cta: storyCTA || undefined, expiresAt: storyExpiresAt || undefined }) as any)
+      if (createStoryMultipart.fulfilled.match(action)) {
+        setSuccess("Story created!")
+        setOpenStoryModal(false)
+        setStoryFile(null); setStoryPreview(""); setStoryProductId(""); setStoryCTA(""); setStoryExpiresAt("")
+        dispatch(fetchStoriesByShop(shopId))
+      } else {
+        setError("Failed to create story.")
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Failed to create story.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Open full-screen StoryViewer for a story card
+  const openStoryViewer = (idx: number) => {
+    setViewerStoryIndex(idx)
+    setIsStoryViewerOpen(true)
+  }
+
+  // Chat for a story: try to ensure a conversation, fallback to navigate
+  const handleStoryChat = async (story: any) => {
+    try {
+      const me = await AuthAPI.getCurrentUser()
+      const participants = me?.user?.id ? [me.user.id] : []
+      let conversationId: string | undefined
+      if (participants.length) {
+        const res = await ChatAPI.ensureConversation(participants)
+        conversationId = res?.conversation?._id
+      }
+      const q = new URLSearchParams({ storyId: String(story._id), shop: String(shopId), ...(conversationId ? { conversationId } : {}) }).toString()
+      router.push(`/chat?${q}`)
+    } catch (e) {
+      router.push(`/chat?storyId=${String(story._id)}&shop=${String(shopId)}`)
+    }
+  }
 
   // Media previews
   useEffect(() => {
@@ -217,8 +287,11 @@ export default function SellerPostsPage() {
       <Container maxWidth="lg">
         <Paper elevation={0} sx={{ p: 4, borderRadius: 3, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper", boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h4" fontWeight="bold">Posts</Typography>
-            <Button variant="contained" onClick={openCreate}>Create Post</Button>
+            <Typography variant="h4" fontWeight="bold">Posts & Stories</Typography>
+            <Box display="flex" gap={1}>
+              <Button variant="outlined" onClick={() => setOpenStoryModal(true)}>Create Story</Button>
+              <Button variant="contained" onClick={openCreate}>Create Post</Button>
+            </Box>
           </Box>
 
           <Tabs value={statusFilter} onChange={(_, v) => setStatusFilter(v)} sx={{ mb: 2 }}>
@@ -286,6 +359,50 @@ export default function SellerPostsPage() {
               </div>
             )
           })()}
+        </Paper>
+
+        {/* Stories section */}
+        <Paper elevation={0} sx={{ p: 4, borderRadius: 3, border: "1px solid", borderColor: "divider", backgroundColor: "background.paper", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", mt: 3 }}>
+          <Typography variant="h5" fontWeight="bold" sx={{ mb: 2 }}>Stories</Typography>
+          {stories.length === 0 ? (
+            <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>No stories yet.</Box>
+          ) : (
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              {stories.map((s: any, idx: number) => (
+                <Card key={String(s._id)} variant="outlined" onClick={() => openStoryViewer(idx)} sx={{ cursor: 'pointer' }}>
+                  <CardContent>
+                    <Box sx={{ borderRadius: 2, overflow: 'hidden', mb: 1, aspectRatio: '9/16', bgcolor: 'action.hover' }}>
+                      {/* try video, fallback to img */}
+                      <video src={s.media} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => {
+                        const v = e.currentTarget as HTMLVideoElement
+                        v.style.display = 'none'
+                        const img = document.createElement('img')
+                        img.src = s.media
+                        img.style.width = '100%'; img.style.height = '100%'; img.style.objectFit = 'cover'
+                        v.parentElement?.appendChild(img)
+                      }} muted controls />
+                    </Box>
+                    {s.product && typeof s.product === 'object' && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Box sx={{ width: 44, height: 44, borderRadius: 1, overflow: 'hidden', bgcolor: 'action.hover' }}>
+                          <img src={(s.product.mainImage || s.product.images?.[0]) as any} alt={s.product.title || 'Product'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="subtitle2" noWrap>{s.product.title || 'Product'}</Typography>
+                          {s.product.price != null && <Typography variant="caption" color="text.secondary">₹{s.product.price}</Typography>}
+                        </Box>
+                        <Link href={`/products/${(s.product as any)._id}`} className="text-sm text-emerald-600">View</Link>
+                      </Box>
+                    )}
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button size="small" onClick={(e) => { e.stopPropagation(); handleStoryChat(s) }}>Chat</Button>
+                      <Button size="small" variant="outlined" component={Link as any} href="/explore" onClick={(e) => e.stopPropagation()}>Explore</Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </Paper>
 
         {/* Create/Edit Modal */}
@@ -436,6 +553,79 @@ export default function SellerPostsPage() {
           </DialogActions>
         </Dialog>
       </Container>
+
+      {/* Create Story Modal */}
+      <Dialog open={openStoryModal} onClose={() => setOpenStoryModal(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create Story</DialogTitle>
+        <DialogContent dividers>
+          {error && (<Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>)}
+          {success && (<Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>)}
+          <Stack spacing={2}>
+            <Button component="label" variant="outlined" startIcon={<CloudUpload />}>Upload Image/Video
+              <input hidden type="file" accept="image/*,video/*" onChange={(e) => setStoryFile(e.target.files?.[0] || null)} />
+            </Button>
+            {storyPreview ? (
+              <video src={storyPreview} controls style={{ width: '100%', maxHeight: 360, borderRadius: 8 }} onError={(e) => {
+                const v = e.currentTarget as HTMLVideoElement
+                v.style.display = 'none'
+                const img = document.createElement('img')
+                img.src = storyPreview
+                img.style.width = '100%'; img.style.maxHeight = '360px'; img.style.borderRadius = '8px'; img.style.objectFit = 'cover'
+                v.parentElement?.appendChild(img)
+              }} />
+            ) : (
+              <Box sx={{ border: '1px dashed', borderColor: 'divider', borderRadius: 2, p: 3, textAlign: 'center', color: 'text.secondary' }}>No media selected</Box>
+            )}
+            <FormControl fullWidth disabled={!products.length}>
+              <InputLabel>Tag Product (optional)</InputLabel>
+              <Select label="Tag Product (optional)" value={storyProductId} onChange={(e) => setStoryProductId(e.target.value)}>
+                <MenuItem value="">None</MenuItem>
+                {products.map((p) => (
+                  <MenuItem key={p._id as any} value={String(p._id)}>{p.title}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField label="CTA (optional)" placeholder="Shop now →" value={storyCTA} onChange={(e) => setStoryCTA(e.target.value)} fullWidth />
+            <TextField type="datetime-local" label="Expires At (optional)" InputLabelProps={{ shrink: true }} value={storyExpiresAt} onChange={(e) => setStoryExpiresAt(e.target.value)} fullWidth />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenStoryModal(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleCreateStory} disabled={!storyFile || loading}>{loading ? 'Posting...' : 'Create Story'}</Button>
+        </DialogActions>
+      </Dialog>
+      {/* Full-screen Story Viewer */}
+      <StoryViewer
+        isOpen={isStoryViewerOpen}
+        onClose={() => setIsStoryViewerOpen(false)}
+        stories={(stories || []).map((s: any) => ({
+          id: String(s._id),
+          shop: {
+            id: String(shopId || ''),
+            name: shop?.name || 'My Shop',
+            username: shop?.slug || shop?.name || 'shop',
+            avatar: typeof shop?.logo === 'string' ? shop.logo : (shop?.logo?.url || 'https://via.placeholder.com/96'),
+            isVerified: !!shop?.isVerified,
+          },
+          items: [
+            {
+              id: String(s._id),
+              type: (s.media || '').match(/\.(png|jpe?g|gif|webp|svg)$/i) ? 'image' : 'video',
+              url: s.media,
+              duration: 5,
+              timestamp: s.createdAt || 'now',
+              product: s.product && typeof s.product === 'object' ? {
+                id: String(s.product._id),
+                name: s.product.title || 'Product',
+                price: (s.product.price as any) || 0,
+                image: (s.product.mainImage || s.product.images?.[0]) || 'https://via.placeholder.com/64',
+              } : undefined,
+            },
+          ],
+        }))}
+        initialStoryIndex={viewerStoryIndex}
+        initialItemIndex={0}
+      />
     </Box>
   )
 }

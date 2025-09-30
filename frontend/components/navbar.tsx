@@ -39,6 +39,7 @@ import NotificationsPanel from '@/components/panels/NotificationsPanel';
 import SearchModal from '@/components/search/SearchModal';
 import LeftSidebar from '@/components/feed/LeftSidebar';
 import ClientPortal from '@/components/util/ClientPortal';
+import ChatPanel from './panels/ChatPanel';
 
 export function Navbar() {
   const { theme, resolvedTheme, setTheme } = useTheme();
@@ -47,6 +48,7 @@ export function Navbar() {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const { user, accessToken, status } = useAppSelector((s) => s.auth);
+  const unread = useAppSelector((s) => s.notifications.items.filter(i => !i.readAt).length);
   const role = user?.role;
   const router = useRouter();
   const [openChat, setOpenChat] = useState(false);
@@ -113,9 +115,11 @@ export function Navbar() {
             </div>
           </div>
         </div>
-        {/* Slide-over panels */}
-      {/* <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} /> */}
-      {/* <ChatPanel open={openChat} onClose={() => setOpenChat(false)} /> */}
+        {/* Slide-over panels (portal rendering) */}
+      <ClientPortal>
+        <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} />
+      </ClientPortal>
+      <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />
       {/* Search Modal */}
       <SearchModal open={openSearch} onClose={() => setOpenSearch(false)} query={searchQ} />
     </nav>
@@ -194,10 +198,15 @@ export function Navbar() {
                   return !v;
                 });
               }}
-              className="hidden lg:inline-flex p-2 rounded-md text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
+              className="hidden lg:inline-flex relative p-2 rounded-md text-gray-700 hover:text-black dark:text-gray-300 dark:hover:text-white"
               aria-label="Open notifications"
             >
               <BellIcon className="h-6 w-6" />
+              {unread > 0 && (
+                <span className="absolute -right-1 -top-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">
+                  {unread > 99 ? '99+' : unread}
+                </span>
+              )}
             </button>
 
             {/* Messages */}
@@ -335,9 +344,11 @@ export function Navbar() {
         </ClientPortal>
       )}
       
-      {/* Slide-over panels */}
-      {/* <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} /> */}
-      {/* <ChatPanel open={openChat} onClose={() => setOpenChat(false)} /> */}
+      {/* Slide-over panels (portal rendering) */}
+      <ClientPortal>
+        <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} />
+        <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />
+      </ClientPortal>
     </nav>
   );
 }

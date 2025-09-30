@@ -22,6 +22,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Icons } from '@/components/icons';
 import { Skeleton } from '@/components/ui/skeleton';
 import SearchModal from '@/components/search/SearchModal';
+import ClientPortal from '@/components/util/ClientPortal';
+import ChatPanel from '../panels/ChatPanel';
 
 interface NavItem {
   name: string;
@@ -90,6 +92,7 @@ export function Navbar() {
   const [searchQ, setSearchQ] = useState('');
   const dispatch = useAppDispatch();
   const { user, accessToken, status } = useAppSelector((s) => s.auth);
+  const unread = useAppSelector((s) => s.notifications.items.filter(i => !i.readAt).length);
   const isAuthenticated = Boolean(user && accessToken);
   const isLoading = status === 'loading';
   const pathname = usePathname();
@@ -211,10 +214,15 @@ export function Navbar() {
           <button
             type="button"
             onClick={() => setOpenNotifs((v) => !v)}
-            className="hidden lg:inline-flex p-2 rounded-md text-muted-foreground hover:text-foreground"
+            className="hidden lg:inline-flex relative p-2 rounded-md text-muted-foreground hover:text-foreground"
             aria-label="Open notifications"
           >
             <BellIcon className="h-5 w-5" />
+            {unread > 0 && (
+              <span className="absolute -right-1 -top-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center">
+                {unread > 99 ? '99+' : unread}
+              </span>
+            )}
           </button>
           {!hideChatOnThisRoute && (
             <button
@@ -336,9 +344,11 @@ export function Navbar() {
   {/* Close header inner container */}
   </div>
 
-  {/* Slide-over panels (portals will render above all) */}
-  {/* <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} /> */}
-  {/* {!hideChatOnThisRoute && <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />} */}
+  {/* Notifications panel via portal to avoid parent stacking contexts */}
+  <ClientPortal>
+    <NotificationsPanel open={openNotifs} onClose={() => setOpenNotifs(false)} />
+  </ClientPortal>
+  {!hideChatOnThisRoute && <ChatPanel open={openChat} onClose={() => setOpenChat(false)} />}
   {/* Search Modal */}
   <SearchModal open={openSearch} onClose={() => setOpenSearch(false)} query={searchQ} />
 </header>

@@ -1,8 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon, HeartIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartSolidIcon } from '@heroicons/react/24/solid';
+import { AuthAPI } from '@/lib/api';
+import { useAppDispatch } from '@/store';
+import { toggleStoryLike, addStoryView } from '@/store/slice/storySlice';
+import { ensureConversation, sendMessageThunk } from '@/store/slice/chatSlice';
 
 interface StoryItem {
   id: string;
@@ -43,11 +48,13 @@ export function StoryViewer({
   initialStoryIndex = 0, 
   initialItemIndex = 0 
 }: StoryViewerProps) {
+  const dispatch = useAppDispatch();
   const [currentStoryIndex, setCurrentStoryIndex] = useState(initialStoryIndex);
   const [currentItemIndex, setCurrentItemIndex] = useState(initialItemIndex);
   const [progress, setProgress] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [message, setMessage] = useState('');
+  const [toast, setToast] = useState<string | null>(null);
 
   // Close on ESC
   useEffect(() => {
@@ -57,6 +64,18 @@ export function StoryViewer({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Record a view once per story per session when first item is visible
+  const [viewedSet] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    const story = stories[currentStoryIndex];
+    if (!story) return;
+    const id = String(story.id);
+    if (currentItemIndex === 0 && !viewedSet.has(id)) {
+      viewedSet.add(id);
+      dispatch(addStoryView(id));
+    }
+  }, [currentStoryIndex, currentItemIndex, stories, dispatch, viewedSet]);
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -128,26 +147,64 @@ export function StoryViewer({
   };
 
   const handleLike = () => {
-    setIsLiked(!isLiked);
+    setIsLiked((v) => !v); // optimistic
+    if (currentItem?.id) {
+      dispatch(toggleStoryLike(String(currentItem.id)));
+    }
   };
 
-  const handleSendMessage = () => {
-    if (message.trim()) {
-      console.log('Sending message:', message, 'to', currentStory.shop.username);
+  const handleSendMessage = async () => {
+    if (!message.trim()) return;
+    try {
+      // Ensure conversation using Redux thunks
+      const me = await AuthAPI.getCurrentUser().catch(() => null);
+      const participants: string[] = [];
+      if (me?.user?.id) participants.push(me.user.id);
+      if (currentStory?.shop?.id) participants.push(String(currentStory.shop.id));
+      let conversationId: string | undefined;
+      if (participants.length) {
+        const conv = await dispatch(ensureConversation({ participants })).unwrap();
+        conversationId = conv?._id;
+      }
+      // Attach product and story metadata if available (as JSON strings for backend [string] schema)
+      const attachment: string[] = [];
+      if (currentItem?.product) {
+        attachment.push(JSON.stringify({
+          type: 'product',
+          productId: currentItem.product.id,
+          title: currentItem.product.name,
+          price: currentItem.product.price,
+          image: currentItem.product.image,
+        }));
+      }
+      attachment.push(JSON.stringify({ type: 'story', storyId: currentStory.id, itemId: currentItem.id }));
+      if (conversationId) {
+        await dispatch(sendMessageThunk({ conversationId, text: message, attachments: attachment })).unwrap();
+        setToast('Reply sent');
+        setTimeout(() => setToast(null), 1500);
+      } else {
+        // If no conversation was created, still show optimistic toast
+        setToast('Reply sent');
+        setTimeout(() => setToast(null), 1500);
+      }
+    } catch (e) {
+      // swallow; UI remains optimistic
+    } finally {
       setMessage('');
     }
   };
 
   if (!isOpen || !currentStory || !currentItem) return null;
 
-  return (
-    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[5] flex items-center justify-center p-6">
-      {/* Transparent overlay to capture outside clicks */}
-      <div className="absolute inset-0 z-10" onClick={onClose} />
+  // Use portal to ensure the modal renders above all content regardless of parent stacking contexts
+  const content = (
+    <div role="dialog" aria-modal="true" aria-label="Story Viewer" className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6">
+      {/* Backdrop */}
+      <div className="absolute inset-0 z-10 bg-black/60 backdrop-blur-sm" onClick={onClose} aria-label="Close Story Viewer" />
       
       {/* Story container - Instagram-like 9:16 phone aspect */}
       <div
-        className="relative z-20 bg-black rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[58vh] aspect-[9/16] max-h-[68vh] w-full max-w-[540px] mt-[50rem]"
+        className="relative z-20 bg-black rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[70vh] sm:h-[80vh] aspect-[9/16] w-full max-w-[420px] sm:max-w-[480px] md:max-w-[540px] mx-auto my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Edge close button on the box corner */}
@@ -305,14 +362,14 @@ export function StoryViewer({
                 <HeartIcon className="h-7 w-7" />
               )}
             </button>
-            <div className="flex-1 flex items-center bg-gradient-to-r from-emerald-500/30 to-sky-500/30 backdrop-blur-md rounded-full px-5 py-4 border border-emerald-300/40 shadow-lg">
+            <div className="flex-1 flex items-center bg-gradient-to-r from-emerald-500/20 to-sky-500/20 backdrop-blur-md rounded-full px-4 py-3 border border-white/20 shadow-lg">
               <input
                 type="text"
                 placeholder={`Reply to ${currentStory.shop.username}...`}
-                className="flex-1 bg-transparent text-white placeholder-white/70 border-none outline-none text-base font-medium"
+                className="flex-1 bg-transparent appearance-none text-white placeholder-white/70 caret-white border-none outline-none text-base font-medium"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
               />
               <button 
                 onClick={handleSendMessage} 
@@ -323,9 +380,20 @@ export function StoryViewer({
             </div>
           </div>
         </div>
+
+        {/* Local toast */}
+        {toast && (
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 bg-white/10 text-white px-3 py-1.5 rounded-full border border-white/20 backdrop-blur-md text-sm">
+            {toast}
+          </div>
+        )}
       </div>
     </div>
   );
+
+  if (typeof window === 'undefined') return null;
+  const root = document.body;
+  return createPortal(content, root);
 }
 
 export default StoryViewer;

@@ -17,6 +17,9 @@ import postsReducer from './slice/postSlice'
 import analyticsReducer from './slice/analyticsSlice'
 import shopsReducer from './slice/shopsSlice'
 import exploreReducer from './slice/exploreSlice'
+import storiesReducer from './slice/storySlice'
+import chatReducer from './slice/chatSlice'
+import notificationsReducer from './slice/notificationSlice'
 
 export const store = configureStore({
   reducer: {
@@ -34,6 +37,9 @@ export const store = configureStore({
     coupons: couponReducer,
     shop: shopReducer,
     posts: postsReducer,
+    stories: storiesReducer,
+    chat: chatReducer,
+    notifications: notificationsReducer,
     analytics: analyticsReducer,
     shops: shopsReducer,
     explore: exploreReducer,

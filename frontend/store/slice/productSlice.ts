@@ -6,6 +6,8 @@ export interface ProductsState {
   current?: ProductDTO | null
   status: 'idle' | 'loading' | 'error'
   error?: string
+  // When true, we're showing in-memory seeded products; skip auto list fetches
+  seeded?: boolean
 }
 
 const initialState: ProductsState = {
@@ -14,10 +16,20 @@ const initialState: ProductsState = {
   status: 'idle',
 }
 
-export const fetchProducts = createAsyncThunk('products/list', async (params: Record<string, any> | undefined) => {
-  const res = await ProductAPI.list(params)
-  return res.products
-})
+export const fetchProducts = createAsyncThunk(
+  'products/list',
+  async (params: Record<string, any> | undefined) => {
+    const res = await ProductAPI.list(params)
+    return res.products
+  },
+  {
+    // Do not fetch list if seeded is active
+    condition: (_, { getState }) => {
+      const state = getState() as any
+      return !state?.products?.seeded
+    },
+  }
+)
 
 export const fetchProduct = createAsyncThunk('products/get', async (id: string) => {
   const res = await ProductAPI.get(id)
@@ -45,7 +57,15 @@ export const deleteProduct = createAsyncThunk('products/delete', async (id: stri
 const slice = createSlice({
   name: 'products',
   initialState,
-  reducers: {},
+  reducers: {
+    seed(state, action: PayloadAction<ProductDTO[]>) {
+      state.items = action.payload
+      state.current = null
+      state.status = 'idle'
+      state.error = undefined
+      state.seeded = true
+    },
+  },
   extraReducers(builder) {
     builder
       .addCase(fetchProducts.pending, (s) => { s.status = 'loading'; s.error = undefined })
@@ -69,4 +89,5 @@ const slice = createSlice({
   },
 })
 
+export const { seed: seedProducts } = slice.actions
 export default slice.reducer

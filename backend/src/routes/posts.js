@@ -6,6 +6,9 @@ const Like = require('../models/Like');
 const auth = require('../middleware/auth');
 const { asyncHandler } = require('../utils/async');
 const { upload, attachUploads } = require('../middleware/uploadAttach');
+const Notification = require('../models/Notification');
+const Follow = require('../models/Follow');
+const Shop = require('../models/Shop');
 
 const router = express.Router();
 
@@ -54,6 +57,12 @@ router.post('/', auth(['seller', 'admin', 'superadmin']), upload.any(), attachUp
     type: req.body.type || 'product',
     status: req.body.status || 'active',
   });
+  // Notify followers of the shop about new post
+  try {
+    const followers = await Follow.find({ shop: req.body.shop }).select('follower').lean();
+    const items = followers.map(f => ({ user: f.follower, type: 'post_new', shop: req.body.shop, post: post._id }));
+    if (items.length) await Notification.insertMany(items);
+  } catch {}
   res.status(201).json({ success: true, post });
 }));
 
@@ -149,6 +158,11 @@ router.post('/:id/like', auth(), asyncHandler(async (req, res) => {
     { upsert: true }
   );
   await Post.findByIdAndUpdate(req.params.id, { $inc: { likesCount: 1 } });
+  try {
+    const post = await Post.findById(req.params.id).select('shop');
+    const shop = await Shop.findById(post?.shop).select('ownerId');
+    if (shop?.ownerId) await Notification.create({ user: shop.ownerId, type: 'post_like', actor: req.user.id, post: req.params.id, shop: post.shop });
+  } catch {}
   res.json({ success: true });
 }));
 
@@ -158,6 +172,11 @@ router.post('/:id/comment', auth(), [body('text').isString().isLength({ min: 1 }
   if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
   const c = await Comment.create({ user: req.user.id, post: req.params.id, text: req.body.text, parent: req.body.parent });
   await Post.findByIdAndUpdate(req.params.id, { $inc: { commentsCount: 1 } });
+  try {
+    const post = await Post.findById(req.params.id).select('shop');
+    const shop = await Shop.findById(post?.shop).select('ownerId');
+    if (shop?.ownerId) await Notification.create({ user: shop.ownerId, type: 'post_comment', actor: req.user.id, post: req.params.id, shop: post.shop, message: req.body.text?.slice(0,200) });
+  } catch {}
   res.json({ success: true, comment: c });
 }));
 

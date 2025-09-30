@@ -1,8 +1,20 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import StoryViewer from './StoryViewer';
+import { useRouter } from 'next/navigation';
+import { useAppSelector } from '@/store';
+import { StoriesAPI, SocialAPI, ShopsAPI } from '@/lib/api';
+
+interface LocalStoryItem {
+  id: string;
+  type: 'image' | 'video';
+  url: string;
+  duration: number;
+  timestamp: string;
+  product?: { id: string; name: string; price?: number; image?: string };
+}
 
 interface Story {
   id: string;
@@ -16,143 +28,113 @@ interface Story {
   hasUnseenStory: boolean;
   lastUpdated: string;
   storiesCount: number;
+  items: LocalStoryItem[];
 }
 
 export function StoriesSection() {
   const [isStoryViewerOpen, setIsStoryViewerOpen] = useState(false);
   const [selectedStoryIndex, setSelectedStoryIndex] = useState(0);
+  const router = useRouter();
+  const myShop = useAppSelector((s: any) => s.shop?.shop);
+  const myShopId = myShop?._id || myShop?.id;
   
-  const [stories] = useState<Story[]>([
-    {
-      id: '1',
-      shop: {
-        id: '1',
-        name: 'Fashion Hub',
-        username: 'fashion_hub_official',
-        avatar: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=150&h=150&fit=crop&crop=center',
-        isVerified: true
-      },
-      hasUnseenStory: true,
-      lastUpdated: '2h',
-      storiesCount: 3
-    },
-    {
-      id: '2',
-      shop: {
-        id: '2',
-        name: 'Tech Store',
-        username: 'tech_reviewer',
-        avatar: 'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=150&h=150&fit=crop&crop=center',
-        isVerified: true
-      },
-      hasUnseenStory: true,
-      lastUpdated: '4h',
-      storiesCount: 5
-    },
-    {
-      id: '3',
-      shop: {
-        id: '3',
-        name: 'Home Decor',
-        username: 'home_decor_ideas',
-        avatar: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=150&h=150&fit=crop&crop=center',
-        isVerified: false
-      },
-      hasUnseenStory: false,
-      lastUpdated: '1d',
-      storiesCount: 2
-    },
-    {
-      id: '4',
-      shop: {
-        id: '4',
-        name: 'Beauty Corner',
-        username: 'beauty_corner',
-        avatar: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=150&h=150&fit=crop&crop=center',
-        isVerified: true
-      },
-      hasUnseenStory: true,
-      lastUpdated: '6h',
-      storiesCount: 4
-    },
-    {
-      id: '5',
-      shop: {
-        id: '5',
-        name: 'Sports Zone',
-        username: 'sports_zone_official',
-        avatar: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=150&h=150&fit=crop&crop=center',
-        isVerified: false
-      },
-      hasUnseenStory: true,
-      lastUpdated: '8h',
-      storiesCount: 1
-    },
-    {
-      id: '6',
-      shop: {
-        id: '6',
-        name: 'Book Haven',
-        username: 'book_haven',
-        avatar: 'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=150&h=150&fit=crop&crop=center',
-        isVerified: false
-      },
-      hasUnseenStory: false,
-      lastUpdated: '12h',
-      storiesCount: 3
-    },
-    {
-      id: '7',
-      shop: {
-        id: '7',
-        name: 'Gadget World',
-        username: 'gadget_world',
-        avatar: 'https://images.unsplash.com/photo-1468495244123-6c6c332eeece?w=150&h=150&fit=crop&crop=center',
-        isVerified: true
-      },
-      hasUnseenStory: true,
-      lastUpdated: '1h',
-      storiesCount: 6
-    }
-  ]);
+  const [stories, setStories] = useState<Story[]>([]);
 
-  // Mock story data with reliable image URLs (tall aspect for 9:16 viewer)
-  const storyData = stories.map(story => ({
+  // Only stories with at least one item are playable
+  const playableStories = useMemo(() => stories.filter(s => (s.items?.length || 0) > 0), [stories]);
+
+  // Build data for the viewer from live stories
+  const storyData = useMemo(() => playableStories.map(story => ({
     id: story.id,
     shop: story.shop,
-    items: [
-      {
-        id: '1',
-        type: 'image' as const,
-        url: `https://picsum.photos/seed/${story.id}-1/900/1600`,
-        duration: 5,
-        timestamp: story.lastUpdated,
-        product: Math.random() > 0.5 ? {
-          id: '1',
-          name: 'Featured Product',
-          price: Math.floor(Math.random() * 5000) + 500,
-          image: story.shop.avatar
-        } : undefined
-      },
-      {
-        id: '2',
-        type: 'image' as const,
-        url: `https://picsum.photos/seed/${story.id}-2/900/1600`,
-        duration: 4,
-        timestamp: story.lastUpdated,
+    items: story.items.map(it => ({
+      id: it.id,
+      type: it.type,
+      url: it.url,
+      duration: it.duration,
+      timestamp: it.timestamp,
+      product: it.product ? {
+        id: it.product.id,
+        name: it.product.name,
+        price: it.product.price ?? 0,
+        image: it.product.image || story.shop.avatar,
+      } : undefined,
+    }))
+  })), [playableStories]);
+
+  // Load followed shops + own shop stories
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        // 1) My followed shops
+        const following = await SocialAPI.following();
+        const followedIds: string[] = Array.isArray(following?.shops) ? following.shops : [];
+        // 2) Include my own shop id first
+        const targetIds = Array.from(new Set([myShopId && String(myShopId), ...followedIds].filter(Boolean))) as string[];
+        if (!targetIds.length) { setStories([]); return; }
+        // 3) Get shop metadata
+        const shopMeta = await ShopsAPI.bulk(targetIds);
+        const metaMap = new Map(shopMeta.shops.map((s: any) => [String(s._id), s]));
+        // 4) Fetch stories per shop
+        const lists = await Promise.all(targetIds.map(id => StoriesAPI.listByShop(id).catch(() => ({ stories: [] as any[] }))));
+        // 5) Build aggregated list
+        const built: Story[] = targetIds.map((id, idx) => {
+          const meta = metaMap.get(String(id));
+          const raw = (lists[idx]?.stories || []) as any[];
+          const items: LocalStoryItem[] = raw.slice(0, 10).map((st) => ({
+            id: String(st._id),
+            type: (st.media || '').match(/\.(png|jpe?g|gif|webp|svg)$/i) ? 'image' : 'video',
+            url: st.media,
+            duration: 5,
+            timestamp: st.createdAt || new Date().toISOString(),
+            product: st.product && typeof st.product === 'object' ? {
+              id: String(st.product._id),
+              name: st.product.title || 'Product',
+              price: st.product.price,
+              image: st.product.mainImage || (st.product.images?.[0])
+            } : undefined
+          }));
+          // compute last updated
+          const latest = items[0]?.timestamp || '';
+          return {
+            id: String(id),
+            shop: {
+              id: String(id),
+              name: meta?.name || 'Shop',
+              username: meta?.slug || meta?.name || 'shop',
+              avatar: typeof meta?.logo === 'string' ? meta.logo : (meta?.logo?.url || 'https://via.placeholder.com/96'),
+              isVerified: !!meta?.isVerified,
+            },
+            hasUnseenStory: items.length > 0,
+            lastUpdated: latest || '',
+            storiesCount: items.length,
+            items,
+          } as Story;
+        });
+        // 6) Sort by recency (latest first)
+        built.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
+        if (!cancelled) setStories(built);
+      } catch (_) {
+        if (!cancelled) setStories([]);
       }
-    ]
-  }));
+    };
+    load();
+    const t = setInterval(load, 15000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [myShopId]);
 
   const handleStoryClick = (storyIndex: number) => {
+    if (!playableStories[storyIndex] || playableStories[storyIndex].items.length === 0) return;
     setSelectedStoryIndex(storyIndex);
     setIsStoryViewerOpen(true);
   };
 
   const handleAddStory = () => {
-    console.log('Add your story');
-    // Here you would implement add story logic
+    router.push('/seller/post');
   };
+
+  // Remove old basic polling block in favor of full live aggregation above
 
   return (
     <div className="w-full">
@@ -173,7 +155,9 @@ export function StoriesSection() {
           <div className="flex flex-col items-center space-y-1 flex-shrink-0 cursor-pointer group">
             <div className="relative">
               <div className="w-14 h-14 bg-gradient-to-br from-emerald-100 via-sky-100 to-blue-100 dark:bg-gray-800 rounded-full flex items-center justify-center border-2 border-dashed border-emerald-400 dark:border-gray-600 group-hover:border-emerald-500 dark:group-hover:border-gray-500 transition-all duration-300 group-hover:scale-105 shadow-md">
-                <PlusIcon className="w-5 h-5 text-emerald-600 dark:text-gray-400 group-hover:scale-110 transition-transform" />
+                <button onClick={handleAddStory} aria-label="Add Story">
+                  <PlusIcon className="w-5 h-5 text-emerald-600 dark:text-gray-400 group-hover:scale-110 transition-transform" />
+                </button>
               </div>
             </div>
             <span className="text-xs font-medium text-emerald-700 dark:text-gray-400 text-center w-14 truncate">
@@ -181,8 +165,8 @@ export function StoriesSection() {
             </span>
           </div>
 
-          {/* Shop Stories - Compact */}
-          {stories.map((story, index) => (
+          {/* Shop Stories - Compact (only those with items) */}
+          {playableStories.map((story, index) => (
             <div 
               key={story.id} 
               className="flex flex-col items-center space-y-1 flex-shrink-0 cursor-pointer group"
@@ -203,6 +187,18 @@ export function StoriesSection() {
                     />
                   </div>
                 </div>
+
+                {/* Small plus overlay to add more stories (visible for own shop) */}
+                {myShopId && String(myShopId) === story.shop.id && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleAddStory(); }}
+                    className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-emerald-600 text-white rounded-full flex items-center justify-center border-2 border-white dark:border-gray-900 shadow-md"
+                    aria-label="Add Story"
+                    title="Add Story"
+                  >
+                    <PlusIcon className="w-3 h-3" />
+                  </button>
+                )}
 
                 {/* Compact Verification Badge */}
                 {story.shop.isVerified && (
