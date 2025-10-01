@@ -275,7 +275,7 @@ export function Navbar() {
                       </Menu.Item>
                       <Menu.Item>
                         {({ active }) => (
-                          <Link href={role === 'seller' ? '/seller/products' : '/shop'} className={`${active ? 'bg-gray-100 dark:bg-gray-700' : ''} group flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-900 dark:text-gray-100`}>
+                          <Link href={role === 'seller' ? '/seller/products' : '/shops'} className={`${active ? 'bg-gray-100 dark:bg-gray-700' : ''} group flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-900 dark:text-gray-100`}>
                             <ShoppingCartIcon className="mr-2 h-5 w-5" />
                             {role === 'seller' ? 'Products' : 'Shop'}
                           </Link>

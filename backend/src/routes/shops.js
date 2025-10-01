@@ -28,6 +28,29 @@ router.get('/', async (req, res) => {
       .lean();
     return res.json({ success: true, shops });
 
+// Follow / Unfollow a shop (authenticated users)
+router.post('/:id/follow', auth(), async (req, res) => {
+  try {
+    const follow = !!req.body?.follow;
+    const shopId = req.params.id;
+    if (follow) {
+      // upsert follow
+      await Follow.updateOne(
+        { shop: shopId, user: req.user.id },
+        { $setOnInsert: { shop: shopId, user: req.user.id, createdAt: new Date() } },
+        { upsert: true }
+      );
+    } else {
+      await Follow.deleteOne({ shop: shopId, user: req.user.id });
+    }
+    const count = await Follow.countDocuments({ shop: shopId });
+    res.json({ success: true, isFollowing: follow, followers: count });
+  } catch (err) {
+    console.error('Follow shop error', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
   } catch (err) {
     console.error('List shops error', err);
     return res.status(500).json({ success: false, message: 'Server error' });

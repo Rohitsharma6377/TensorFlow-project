@@ -72,7 +72,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       // Reset localStorage if there's an error
       if (typeof window !== 'undefined') {
         localStorage.removeItem('cart');
-        localStorage.removeItem('wishlist');
+        localStorage.removeItem('wishlist');  
       }
     }
   }, []);

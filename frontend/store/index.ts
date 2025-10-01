@@ -20,6 +20,9 @@ import exploreReducer from './slice/exploreSlice'
 import storiesReducer from './slice/storySlice'
 import chatReducer from './slice/chatSlice'
 import notificationsReducer from './slice/notificationSlice'
+import adminUsersReducer from './slice/adminUsersSlice'
+import payoutAdminReducer from './slice/payoutAdminSlice'
+import premiumMemberReducer from './slice/premiumMemberSlice'
 
 export const store = configureStore({
   reducer: {
@@ -43,6 +46,9 @@ export const store = configureStore({
     analytics: analyticsReducer,
     shops: shopsReducer,
     explore: exploreReducer,
+    adminUsers: adminUsersReducer,
+    payouts: payoutAdminReducer,
+    premiumMembers: premiumMemberReducer,
   },
 })
 

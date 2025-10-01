@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import LeftSidebar from "@/components/feed/LeftSidebar";
 
 // Only show the sidebar on these routes
-export const SHOW_ON: string[] = ["/", "/feed", "/shops", "/products", "/explore"]; 
+export const SHOW_ON: string[] = ["/", "/feed", "/shops", "/shop", "/products", "/explore"]; 
 
 export default function ConditionalLeftSidebar() {
   const pathname = usePathname() || "/";

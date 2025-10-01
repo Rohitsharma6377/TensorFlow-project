@@ -2,10 +2,46 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 // Basic role-based routing stub. Enhance this to read JWT/cookies and fetch user role.
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const url = req.nextUrl.clone()
   const pathname = url.pathname
+  const host = req.headers.get('host') || ''
 
+  // 1) Bypass static assets and APIs completely
+  const bypassPrefixes = ['/_next', '/api', '/favicon', '/images', '/public', '/assets']
+  if (bypassPrefixes.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next()
+  }
+
+  // 2) Custom domain -> rewrite to /shop/[slug]
+  // Only attempt when host is not localhost/dev app domain
+  const appHosts = [
+    'localhost:3000',
+    process.env.NEXT_PUBLIC_APP_DOMAIN || '',
+  ].filter(Boolean)
+
+  const isAppHost = appHosts.some((h) => h && host.toLowerCase().endsWith(h.toLowerCase()))
+  if (!isAppHost && host) {
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE || ''
+      const res = await fetch(`${apiBase}/api/v1/domains/resolve?host=${encodeURIComponent(host)}`)
+      if (res.ok) {
+        const data = await res.json()
+        const slug = data?.slug
+        if (slug) {
+          const rewriteUrl = req.nextUrl.clone()
+          // Preserve path under custom domain; map "/" to /shop/[slug]
+          const suffix = pathname === '/' ? '' : pathname
+          rewriteUrl.pathname = `/shop/${slug}${suffix}`
+          return NextResponse.rewrite(rewriteUrl)
+        }
+      }
+    } catch {
+      // fail open
+    }
+  }
+
+  // 3) Role-based routing for protected app areas
   const role = req.cookies.get('role')?.value as
     | 'customer'
     | 'seller'
@@ -23,14 +59,11 @@ export function middleware(req: NextRequest) {
     if (p.startsWith('/wishlist')) return ['customer', 'seller', 'admin', 'superadmin']
     if (p.startsWith('/checkout')) return ['customer', 'seller', 'admin', 'superadmin']
     if (p.startsWith('/cart')) return ['customer', 'seller', 'admin', 'superadmin']
-    if (p.startsWith('/shop')) return ['seller', 'admin', 'superadmin']
     return null
   }
 
   const required = requires(pathname)
-  if (!required) {
-    return NextResponse.next()
-  }
+  if (!required) return NextResponse.next()
 
   // If no role cookie, treat as unauthenticated and redirect to login with next param
   if (!role) {
@@ -51,17 +84,6 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/shop/:path*',
-    '/seller/:path*',
-    '/admin/:path*',
-    '/superadmin/:path*',
-    // customer area
-    '/user/:path*',
-    // legacy direct routes if still used anywhere
-    '/cart',
-    '/checkout',
-    '/orders/:path*',
-    '/wishlist',
-  ],
+  // Run on everything except Next assets and static files; we also bypass inside code
+  matcher: ['/((?!_next|favicon.ico|images|public|api).*)', '/seller/:path*', '/admin/:path*', '/superadmin/:path*', '/user/:path*', '/cart', '/checkout', '/orders/:path*', '/wishlist'],
 }

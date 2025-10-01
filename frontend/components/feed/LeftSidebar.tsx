@@ -106,7 +106,7 @@ export function LeftSidebar({ onNavigate }: { onNavigate?: () => void }) {
                   key={shop._id}
                   className="flex-shrink-0 md:flex-shrink md:w-auto w-[85%] xs:w-[70%] sm:w-auto flex items-center gap-3 p-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-gray-800 transition-colors border border-transparent hover:border-emerald-200"
                 >
-                  <Link href={`/shops/${shop.slug}`} className="flex items-center gap-3" onClick={onNavigate}
+                  <Link href={`/shop/${shop.slug}`} className="flex items-center gap-3" onClick={onNavigate}
                   >
                     <div className="relative">
                       <img

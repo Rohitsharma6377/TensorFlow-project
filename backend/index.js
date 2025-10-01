@@ -49,6 +49,7 @@ const wishlistCollectionsRouter = require('./src/routes/wishlistCollections');
 const web3Router = require('./src/routes/web3');
 const notificationsRouter = require('./src/routes/notifications');
 const devRouter = require('./src/routes/dev');
+const domainsRouter = require('./src/routes/domains');
 
 // Models for cron job
 const Escrow = require('./src/models/Escrow');
@@ -126,6 +127,7 @@ app.use('/api/v1/taxes', taxesRouter);
 app.use('/api/v1/coupons', couponsRouter);
 app.use('/api/v1/notifications', notificationsRouter);
 app.use('/api/v1/dev', devRouter);
+app.use('/api/v1/domains', domainsRouter);
 
 // 404 handler
 app.use((req, res) => {

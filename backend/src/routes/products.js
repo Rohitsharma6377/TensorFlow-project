@@ -140,6 +140,18 @@ router.get('/:id', cache(60), asyncHandler(async (req, res) => {
   res.json({ success: true, product: p });
 }));
 
+// Get product by slug
+router.get('/slug/:slug', cache(60), asyncHandler(async (req, res) => {
+  const { slug } = req.params;
+  let p = await Product.findOne({ slug });
+  if (!p) {
+    // Optional fallback: loose match on title if slug not stored
+    p = await Product.findOne({ title: new RegExp(`^${slug}$`, 'i') });
+  }
+  if (!p) return res.status(404).json({ success: false, message: 'Not found' });
+  res.json({ success: true, product: p });
+}));
+
 // Update product (owner/admin)
 router.put(
   '/:id',

@@ -10,6 +10,9 @@ import { useState } from 'react';
 const items = [
   { href: '/superadmin/dashboard', label: 'Dashboard', icon: Icons.dashboard },
   { href: '/superadmin/analytics', label: 'Analytics', icon: Icons.dashboard },
+  { href: '/superadmin/total-income', label: 'Total Income', icon: Icons.wallet },
+  { href: '/superadmin/crypto-distribution', label: 'Crypto', icon: Icons.wallet },
+  { href: '/superadmin/shops', label: 'Shops', icon: Icons.package },
   { href: '/superadmin/users', label: 'Users', icon: Icons.user },
   { href: '/superadmin/contacts', label: 'Contacts', icon: Icons.package },
   { href: '/superadmin/leads', label: 'Leads', icon: Icons.package },

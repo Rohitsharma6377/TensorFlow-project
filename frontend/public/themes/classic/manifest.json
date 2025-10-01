@@ -1,0 +1,34 @@
+{
+  "id": "classic",
+  "name": "Classic",
+  "version": "1.0.0",
+  "description": "A simple, clean storefront with hero, featured products and grid.",
+  "defaults": {
+    "preset": "classic",
+    "colors": {
+      "primary": "#10b981",
+      "accent": "#0ea5e9",
+      "background": "#ffffff",
+      "text": "#0f172a"
+    },
+    "sections": {
+      "hero": {
+        "enabled": true,
+        "image": "/banner-placeholder.jpg",
+        "heading": "Welcome to our shop",
+        "subheading": "Discover products you will love",
+        "ctaText": "Shop now",
+        "ctaHref": "/products"
+      },
+      "featuredProducts": {
+        "enabled": true,
+        "ids": []
+      },
+      "grid": {
+        "enabled": true,
+        "columns": 4,
+        "limit": 12
+      }
+    }
+  }
+}
