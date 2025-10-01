@@ -4,7 +4,7 @@ async function resolveProductId(product: string): Promise<string | null> {
   // if looks like Mongo ObjectId, use directly
   if (/^[a-fA-F0-9]{24}$/.test(product)) return product
   try {
-    const base = process.env.NEXT_PUBLIC_API_BASE || ''
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000'
     const res = await fetch(`${base}/api/v1/products/slug/${encodeURIComponent(product)}`, { next: { revalidate: 60 } })
     if (!res.ok) return null
     const data = await res.json()
@@ -16,7 +16,7 @@ async function resolveProductId(product: string): Promise<string | null> {
 
 async function shopOwnsProduct(shopSlug: string, productId: string): Promise<boolean> {
   try {
-    const base = process.env.NEXT_PUBLIC_API_BASE || ''
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000'
     const shopRes = await fetch(`${base}/api/v1/shops/${encodeURIComponent(shopSlug)}`, { next: { revalidate: 60 } })
     if (!shopRes.ok) return true // if we can't verify, allow
     const shopData = await shopRes.json()

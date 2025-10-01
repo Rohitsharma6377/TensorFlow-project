@@ -10,14 +10,14 @@ type Theme = {
 }
 
 async function getShop(slug: string) {
-  const base = process.env.NEXT_PUBLIC_API_BASE || ''
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000'
   const res = await fetch(`${base}/api/v1/shops/${encodeURIComponent(slug)}`, { next: { revalidate: 60 } })
   const data = await res.json()
   return data?.shop || null
 }
 
 async function getProducts(shopId: string, limit = 100) {
-  const base = process.env.NEXT_PUBLIC_API_BASE || ''
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000'
   const res = await fetch(`${base}/api/v1/products?shopId=${encodeURIComponent(shopId)}&limit=${limit}`, { next: { revalidate: 60 } })
   if (!res.ok) return []
   const data = await res.json()

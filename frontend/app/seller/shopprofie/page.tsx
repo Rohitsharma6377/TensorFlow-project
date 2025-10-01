@@ -44,7 +44,11 @@ import {
   QrCode,
   AccountBalance,
   LocalShipping,
+  Visibility,
+  Download,
+  Add,
 } from "@mui/icons-material"
+import PreviewRenderer from "@/components/builder/PreviewRenderer"
 
 const SHOP_CATEGORIES = [
   "electronics",
@@ -128,6 +132,63 @@ export default function EnhancedShopProfile() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [bannerPreview, setBannerPreview] = useState<string | null>(null)
   const [upiQrPreview, setUpiQrPreview] = useState<string | null>(null)
+
+  // Builder (page builder JSON) and Domain mapping
+  const [builderJson, setBuilderJson] = useState<string>("")
+  const [builderError, setBuilderError] = useState<string | null>(null)
+  const [domainName, setDomainName] = useState<string>("")
+  const [domainInfo, setDomainInfo] = useState<any>(null)
+
+  // Helper: safe parse builder JSON
+  const parseBuilder = (): any => {
+    try {
+      return builderJson?.trim() ? JSON.parse(builderJson) : { home: { blocks: [] } }
+    } catch {
+      return { home: { blocks: [] } }
+    }
+  }
+
+  // Helper: set builder JSON pretty
+  const setBuilder = (obj: any) => setBuilderJson(JSON.stringify(obj, null, 2))
+
+  // Insert block templates into home.blocks
+  const insertBlock = (type: 'Header'|'Hero'|'Banner'|'ProductSlider'|'RichText'|'Footer') => {
+    const b = parseBuilder()
+    if (!b.home) b.home = { blocks: [] }
+    if (!Array.isArray(b.home.blocks)) b.home.blocks = []
+    const id = `${type.toLowerCase()}-${Math.random().toString(36).slice(2, 8)}`
+    const templates: Record<string, any> = {
+      Header: { id, type: 'Header', props: { menu: [ { label: 'Home', href: '/' }, { label: 'Products', href: `/shops/${shop?.slug || 'shop'}/products` }, { label: 'About', href: `/shops/${shop?.slug || 'shop'}/about` } ] } },
+      Hero: { id, type: 'Hero', props: { image: '/banner-placeholder.jpg', heading: 'Welcome', subheading: 'Build your store', ctaText: 'Shop now', ctaHref: `/shops/${shop?.slug || 'shop'}/products` } },
+      Banner: { id, type: 'Banner', props: { image: '/banner-placeholder.jpg', href: `/shops/${shop?.slug || 'shop'}/products`, alt: 'Sale' } },
+      ProductSlider: { id, type: 'ProductSlider', props: { title: 'Featured', limit: 8, productIds: [] } },
+      RichText: { id, type: 'RichText', props: { html: '<h2>About our brand</h2><p>Fast shipping, great support.</p>' } },
+      Footer: { id, type: 'Footer', props: { links: [ { label: 'Shipping', href: `/shops/${shop?.slug || 'shop'}/pages/shipping-policy` } ] } },
+    }
+    b.home.blocks.push(templates[type])
+    setBuilder(b)
+  }
+
+  // Open full page preview in new tab with random id
+  const openBuilderPreview = () => {
+    try {
+      const id = Math.random().toString(36).slice(2, 10)
+      const data = builderJson?.trim() ? builderJson : JSON.stringify(parseBuilder(), null, 2)
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`builder:${id}`, data)
+        window.open(`/seller/builder/${id}?editor=1`, '_blank')
+      }
+    } catch {}
+  }
+
+  const downloadBuilderJson = () => {
+    const blob = new Blob([builderJson || '{\n  "home": {"blocks": []}\n}'], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'builder.json'
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
 
   // Generate and cleanup preview URLs when files change
   useEffect(() => {
@@ -237,6 +298,16 @@ export default function EnhancedShopProfile() {
           fedex: { enabled: !!dp.fedex?.enabled, clientId: dp.fedex?.clientId || '', clientSecret: '', accountNumber: dp.fedex?.accountNumber || '' },
         }))
       }
+      // Prefill builder JSON if present
+      if (shop.metadata?.builder) {
+        try {
+          setBuilderJson(JSON.stringify(shop.metadata.builder, null, 2))
+        } catch {}
+      }
+      // Prefill domain name if previously claimed (optional)
+      if (typeof shop.metadata?.domain === 'string') {
+        setDomainName(shop.metadata.domain)
+      }
     } catch {}
   }, [shop])
 
@@ -245,6 +316,7 @@ export default function EnhancedShopProfile() {
     setLoading(true)
     setError(null)
     setSuccess(null)
+    setBuilderError(null)
 
     try {
       if (!shopName.trim()) throw new Error('Please enter a shop name')
@@ -279,6 +351,17 @@ export default function EnhancedShopProfile() {
           cod: paymentMethods.cod,
         },
         deliveryPartners,
+      }
+
+      // Attach builder if valid JSON
+      if (builderJson && builderJson.trim()) {
+        try {
+          const parsed = JSON.parse(builderJson)
+          metadata.builder = parsed
+        } catch (err: any) {
+          setBuilderError('Builder JSON is invalid. Please fix JSON before saving.')
+          throw new Error('Invalid builder JSON')
+        }
       }
 
       // Upload helper
@@ -502,6 +585,47 @@ export default function EnhancedShopProfile() {
                       </Box>
                     </CardContent>
                   </Card>
+
+                {/* Builder Studio (MVP) */}
+                <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Store color="primary" />
+                      Builder Studio (MVP)
+                    </Typography>
+                    <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
+                      <Button variant="outlined" startIcon={<Add />} onClick={() => insertBlock('Header')}>
+                        Add Header
+                      </Button>
+                      <Button variant="outlined" startIcon={<Visibility />} onClick={openBuilderPreview}>
+                        Open Full Preview
+                      </Button>
+                      <Button variant="outlined" startIcon={<Download />} onClick={downloadBuilderJson}>
+                        Download JSON
+                      </Button>
+                    </Stack>
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Builder JSON (you can paste liquid-like HTML in RichText props.html)
+                      </Typography>
+                      <TextField
+                        value={builderJson}
+                        onChange={(e) => setBuilderJson(e.target.value)}
+                        multiline
+                        minRows={10}
+                        fullWidth
+                        placeholder='{"home": {"blocks": []}}'
+                      />
+                      {builderError && (
+                        <Alert severity="error" sx={{ mt: 1 }}>{builderError}</Alert>
+                      )}
+                    </Box>
+                    <Box mt={3}>
+                      <Typography variant="subtitle1" gutterBottom>Inline Preview</Typography>
+                      <PreviewRenderer data={parseBuilder()} />
+                    </Box>
+                  </CardContent>
+                </Card>
 
                   {/* Contact Information */}
                   <Card elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
@@ -1072,6 +1196,133 @@ export default function EnhancedShopProfile() {
                             />
                           )}
                         </Box>
+                      </Stack>
+                    </AccordionDetails>
+                  </Accordion>
+
+                  {/* Builder Studio (MVP) */}
+                  <Accordion elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                    <AccordionSummary expandIcon={<ExpandMore />}>
+                      <Typography variant="h6" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Store color="primary" />
+                        Builder Studio (MVP)
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+                        {/* Left Sidebar: Pages & Components */}
+                        <Box sx={{ width: { xs: '100%', md: 300 }, flexShrink: 0 }}>
+                          <Card variant="outlined" sx={{ mb: 2 }}>
+                            <CardContent>
+                              <Typography variant="subtitle1" fontWeight="bold">Pages</Typography>
+                              <Stack spacing={1} mt={1}>
+                                <Button size="small" variant="outlined" href={`/shop/${shop?.slug || ''}`} target="_blank" startIcon={<Visibility />}>Home Preview</Button>
+                                <Button size="small" variant="outlined" href={`/shop/${shop?.slug || ''}/about`} target="_blank" startIcon={<Visibility />}>About Preview</Button>
+                                <Button size="small" variant="outlined" startIcon={<Add />} onClick={() => alert('Add Page: Coming soon (uses metadata.pages)')}>Add Page</Button>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Typography variant="subtitle1" fontWeight="bold">Components</Typography>
+                              <Stack spacing={1} mt={1}>
+                                <Button size="small" onClick={() => insertBlock('Header')}>Add Header</Button>
+                                <Button size="small" onClick={() => insertBlock('Hero')}>Add Hero</Button>
+                                <Button size="small" onClick={() => insertBlock('Banner')}>Add Banner</Button>
+                                <Button size="small" onClick={() => insertBlock('ProductSlider')}>Add Product Slider</Button>
+                                <Button size="small" onClick={() => insertBlock('RichText')}>Add Rich Text</Button>
+                                <Button size="small" onClick={() => insertBlock('Footer')}>Add Footer</Button>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        </Box>
+
+                        {/* Editor Panel */}
+                        <Box sx={{ flex: 1 }}>
+                          <Stack direction="row" spacing={1} justifyContent="flex-end" mb={1}>
+                            <Button size="small" variant="outlined" startIcon={<Download />} onClick={downloadBuilderJson}>Download JSON</Button>
+                            <Button size="small" variant="contained" onClick={() => setSuccess('Saved to form. Click Save Changes at bottom to persist.')}>Apply to Form</Button>
+                          </Stack>
+                          <TextField
+                            label="Builder JSON"
+                            multiline
+                            minRows={12}
+                            fullWidth
+                            value={builderJson}
+                            onChange={(e) => setBuilderJson(e.target.value)}
+                            placeholder='{"home":{"blocks":[]}}'
+                          />
+                        </Box>
+                      </Stack>
+                    </AccordionDetails>
+                  </Accordion>
+
+                  {/* Builder (Page Builder) */}
+                  <Accordion elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                    <AccordionSummary expandIcon={<ExpandMore />}>
+                      <Typography variant="h6" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Store color="primary" />
+                        Site Builder (JSON)
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <Stack spacing={2}>
+                        <Typography variant="body2" color="text.secondary">
+                          Paste or edit your builder layout JSON. Home page uses <code>builder.home.blocks</code> (Header, Hero, Banner, ProductSlider, RichText, Footer). This is a simple, readable format anyone can edit.
+                        </Typography>
+                        {builderError && <Alert severity="error">{builderError}</Alert>}
+                        <TextField
+                          label="Builder JSON"
+                          multiline
+                          minRows={8}
+                          value={builderJson}
+                          onChange={(e) => setBuilderJson(e.target.value)}
+                          placeholder='{"home":{"blocks":[]}}'
+                        />
+                        <Alert severity="info">
+                          Tip: Use product IDs in ProductSlider: {"{ \"type\": \"ProductSlider\", \"props\": { \"title\": \"Featured\", \"productIds\": [\"<id1>\", \"<id2>\"] }}"}
+                        </Alert>
+                      </Stack>
+                    </AccordionDetails>
+                  </Accordion>
+
+                  {/* Domain Mapping */}
+                  <Accordion elevation={0} sx={{ border: "1px solid", borderColor: "divider" }}>
+                    <AccordionSummary expandIcon={<ExpandMore />}>
+                      <Typography variant="h6" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Language color="primary" />
+                        Custom Domain
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails>
+                      <Stack spacing={2}>
+                        <Typography variant="body2" color="text.secondary">
+                          Map your domain to this shop. Enter your domain and click Claim. We will give you a CNAME to add in your DNS. After DNS is set, an admin can verify.
+                        </Typography>
+                        <Box display="flex" gap={2}>
+                          <TextField fullWidth label="Domain (example: shop.com)" value={domainName} onChange={(e) => setDomainName(e.target.value)} />
+                          <Button variant="outlined" disabled={!domainName || loading} onClick={async () => {
+                            try {
+                              setLoading(true)
+                              const res = await api<any>('/api/v1/domains/claim', { method: 'POST', body: JSON.stringify({ domain: domainName }) })
+                              setDomainInfo(res)
+                              setSuccess('Domain claimed. Add the CNAME shown below, then ask admin to verify.')
+                            } catch (err: any) {
+                              setError(err?.message || 'Failed to claim domain')
+                            } finally {
+                              setLoading(false)
+                            }
+                          }}>Claim</Button>
+                        </Box>
+                        {domainInfo?.instructions && (
+                          <Alert severity="info">
+                            <div><strong>Type:</strong> {domainInfo.instructions.type}</div>
+                            <div><strong>Host:</strong> {domainInfo.instructions.host}</div>
+                            <div><strong>Value:</strong> {domainInfo.instructions.value}</div>
+                            <div>{domainInfo.instructions.note}</div>
+                          </Alert>
+                        )}
                       </Stack>
                     </AccordionDetails>
                   </Accordion>
