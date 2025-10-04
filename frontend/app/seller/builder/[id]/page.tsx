@@ -45,6 +45,10 @@ export default function BuilderPreviewPage() {
   const [productTempSelected, setProductTempSelected] = useState<string[]>([]);
   const [productPage, setProductPage] = useState<number>(1);
   const [productHasMore, setProductHasMore] = useState<boolean>(false);
+  // Names cache for selected product IDs (for display under ProductSlider)
+  const [productNameCache, setProductNameCache] = useState<Record<string, string>>({});
+  // Drag & drop state for media dialog
+  const [isDragging, setIsDragging] = useState<boolean>(false);
   // Cache shopId and init status to avoid repeated API calls in dev/StrictMode or re-renders
   const [shopIdState, setShopIdState] = useState<string | null>(null);
   const initRef = useRef<string | null>(null);
@@ -80,6 +84,8 @@ export default function BuilderPreviewPage() {
     }
     return null;
   };
+
+  // (moved below selectedBlock to avoid TS order issue)
 
   // Load or create a code session tied to this builder id
   useEffect(() => {
@@ -301,6 +307,37 @@ export default function BuilderPreviewPage() {
     const b = (currentData.home?.blocks || []).find((x: any) => x.id === selectedId);
     return b as any;
   }, [currentData, selectedId]);
+
+  // Resolve and cache product names for ProductSlider inspector (after selectedBlock is defined)
+  useEffect(() => {
+    const b = selectedBlock;
+    if (!b || b.type !== 'ProductSlider') return;
+    const ids: string[] = Array.isArray(b.props?.productIds) ? b.props.productIds : [];
+    if (!ids.length) return;
+    let cancelled = false;
+    (async () => {
+      const missing = ids.filter((id) => !productNameCache[id]);
+      if (missing.length === 0) return;
+      const queue = [...missing];
+      const fetched: Record<string, string> = {};
+      const workers = 2;
+      async function worker() {
+        while (queue.length && !cancelled) {
+          const id = queue.shift() as string;
+          try {
+            const res = await ProductAPI.get(id);
+            const p: any = (res as any)?.product || res;
+            if (p) fetched[id] = p.title || id;
+          } catch {
+            fetched[id] = id;
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: workers }).map(() => worker()));
+      if (!cancelled && Object.keys(fetched).length) setProductNameCache((prev) => ({ ...prev, ...fetched }));
+    })();
+    return () => { cancelled = true };
+  }, [selectedBlock, selectedBlock?.type, selectedBlock?.props?.productIds]);
 
   const addSection = (type: string, variant?: string) => {
     if (!allData) return;
@@ -727,6 +764,26 @@ export default function BuilderPreviewPage() {
                 {selectedBlock.type === 'Testimonials' && (
                   <>
                     <TextField size="small" label="Title" value={selectedBlock.props?.title || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, title: e.target.value } }))} />
+                    {/* Non-MUI: layout toggle */}
+                    <div className="mt-1">
+                      <label className="text-xs text-slate-600">Layout</label>
+                      <div className="mt-1 flex gap-2">
+                        <button type="button" className={`px-2 py-1 rounded border text-xs ${selectedBlock.props?.layout !== 'slider' ? 'border-emerald-500 text-emerald-700' : 'border-slate-300'}`} onClick={() => updateSelected(b => ({ ...b, props: { ...b.props, layout: 'grid' } }))}>Grid</button>
+                        <button type="button" className={`px-2 py-1 rounded border text-xs ${selectedBlock.props?.layout === 'slider' ? 'border-emerald-500 text-emerald-700' : 'border-slate-300'}`} onClick={() => updateSelected(b => ({ ...b, props: { ...b.props, layout: 'slider' } }))}>Slider</button>
+                      </div>
+                    </div>
+                    {/* Non-MUI: slider options */}
+                    {selectedBlock.props?.layout === 'slider' && (
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={Boolean(selectedBlock.props?.autoplay)} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, autoplay: e.target.checked } }))} /> Autoplay</label>
+                        <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={selectedBlock.props?.showArrows !== false} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, showArrows: e.target.checked } }))} /> Show arrows</label>
+                        <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={Boolean(selectedBlock.props?.showDots)} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, showDots: e.target.checked } }))} /> Show dots</label>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span>Interval (ms)</span>
+                          <input className="border rounded px-1 py-0.5 w-24 text-xs" type="number" value={selectedBlock.props?.interval ?? 3000} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, interval: Math.max(1000, Number(e.target.value)) } }))} />
+                        </div>
+                      </div>
+                    )}
                     <Typography variant="body2">Reviews ({Array.isArray(selectedBlock.props?.items) ? selectedBlock.props.items.length : 0})</Typography>
                     <Stack spacing={1}>
                       {(Array.isArray(selectedBlock.props?.items) ? selectedBlock.props.items : []).map((it: any, i: number) => (
@@ -802,6 +859,17 @@ export default function BuilderPreviewPage() {
                       <FormControlLabel control={<Switch checked={Boolean(selectedBlock.props?.showDots)} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, showDots: e.target.checked } }))} />} label="Show dots" />
                     </Stack>
                     <TextField size="small" multiline minRows={3} label="Product IDs (one per line)" value={(Array.isArray(selectedBlock.props?.productIds) ? selectedBlock.props.productIds : []).join("\n")} onChange={(e) => { const ids = e.target.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean); updateSelected(b => ({ ...b, props: { ...b.props, productIds: ids } })); }} helperText="Optional: specify exact product IDs to show. Leave empty to show placeholders." />
+                    {/* Non-MUI: show selected product names for clarity */}
+                    {Array.isArray(selectedBlock.props?.productIds) && selectedBlock.props.productIds.length > 0 && (
+                      <div className="mt-1 p-2 rounded border border-slate-200 bg-slate-50">
+                        <div className="text-[11px] text-slate-600 mb-1">Selected products</div>
+                        <ul className="list-disc pl-5 space-y-0.5">
+                          {selectedBlock.props.productIds.map((id: string) => (
+                            <li key={id} className="text-xs"><span className="text-slate-500">{id.slice(0,6)}…</span> — {productNameCache[id] || 'loading…'}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </>
                 )}
                 {selectedBlock.type === 'Footer' && (
