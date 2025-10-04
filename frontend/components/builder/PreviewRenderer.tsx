@@ -147,23 +147,74 @@ function FAQBlock({ props }: any) {
 
 function TestimonialsBlock({ props }: any) {
   const items = Array.isArray(props?.items) ? props.items : [];
+  const layout: 'grid' | 'slider' = props?.layout === 'slider' ? 'slider' : 'grid';
+  const autoplay: boolean = Boolean(props?.autoplay);
+  const interval: number = Math.max(1000, Number(props?.interval ?? 3000));
+  const showArrows: boolean = props?.showArrows !== false; // default true
+  const showDots: boolean = Boolean(props?.showDots);
+
+  const [index, setIndex] = useState(0);
+  const timerRef = useRef<any>(null);
+  const count = items.length;
+  const goTo = (i: number) => setIndex(((i % Math.max(count,1)) + Math.max(count,1)) % Math.max(count,1));
+  const next = () => goTo(index + 1);
+  const prev = () => goTo(index - 1);
+
+  useEffect(() => {
+    if (layout !== 'slider' || !autoplay || count <= 1) return;
+    timerRef.current && clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => setIndex((i) => (i + 1) % count), interval);
+    return () => timerRef.current && clearInterval(timerRef.current);
+  }, [layout, autoplay, interval, count]);
+
   return (
     <Container sx={{ my: 2 }}>
       <Typography variant="h6" sx={{ mb: 1 }}>{props?.title || "Testimonials"}</Typography>
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2 }}>
-        {items.map((t: any, idx: number) => (
-          <Card key={idx} sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Avatar src={t.avatar} sx={{ width: 32, height: 32 }} />
-              <Typography variant="subtitle2">{t.name || 'Customer'}</Typography>
+      {layout === 'slider' ? (
+        <Box sx={{ position: 'relative' }}>
+          <Box sx={{ width: '100%', overflow: 'hidden' }}>
+            <Box sx={{ display: 'flex', transition: 'transform .3s ease', transform: `translateX(-${index * 320}px)` }}>
+              {items.map((t: any, idx: number) => (
+                <Card key={idx} sx={{ p: 2, minWidth: 300, maxWidth: 300, mr: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Avatar src={t.avatar} sx={{ width: 32, height: 32 }} />
+                    <Typography variant="subtitle2">{t.name || 'Customer'}</Typography>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">{t.text || 'Great products!'}</Typography>
+                </Card>
+              ))}
             </Box>
-            <Typography variant="body2" color="text.secondary">{t.text || 'Great products!'}</Typography>
-          </Card>
-        ))}
-        {items.length === 0 && (
-          <Box><Typography variant="body2" color="text.secondary">Add testimonials in props.items</Typography></Box>
-        )}
-      </Box>
+          </Box>
+          {showArrows && count > 1 && (
+            <>
+              <Button size="small" variant="contained" onClick={prev} sx={{ minWidth: 0, position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }}>{"<"}</Button>
+              <Button size="small" variant="contained" onClick={next} sx={{ minWidth: 0, position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)' }}>{">"}</Button>
+            </>
+          )}
+          {showDots && count > 1 && (
+            <Box sx={{ position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', gap: 1, justifyContent: 'center' }}>
+              {items.map((_: any, i: number) => (
+                <Box key={i} onClick={() => goTo(i)} sx={{ width: 8, height: 8, borderRadius: '50%', cursor: 'pointer', bgcolor: i === index ? 'primary.main' : '#d1d5db' }} />
+              ))}
+            </Box>
+          )}
+        </Box>
+      ) : (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 2 }}>
+          {items.map((t: any, idx: number) => (
+            <Card key={idx} sx={{ p: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Avatar src={t.avatar} sx={{ width: 32, height: 32 }} />
+                <Typography variant="subtitle2">{t.name || 'Customer'}</Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary">{t.text || 'Great products!'}</Typography>
+            </Card>
+          ))}
+          {items.length === 0 && (
+            <Box><Typography variant="body2" color="text.secondary">Add testimonials in props.items</Typography></Box>
+          )}
+        </Box>
+      )}
     </Container>
   );
 }
