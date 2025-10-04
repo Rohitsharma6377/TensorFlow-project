@@ -21,6 +21,106 @@ function hexToRgba(hex?: string, alpha: number = 1) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function ProfileHeaderBlock({ props }: any) {
+  const avatar = props?.avatar;
+  const banner = props?.banner;
+  const name = props?.name || 'Seller Name';
+  const bio = props?.bio || '';
+  return (
+    <Box sx={{ position: 'relative', borderRadius: 2, overflow: 'hidden', mb: 2, bgcolor: 'inherit', color: 'inherit' }}>
+      {banner && (
+        <img src={banner} alt="banner" style={{ width: '100%', height: 220, objectFit: 'cover' }} />
+      )}
+      <Container sx={{ mt: banner ? -6 : 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, borderRadius: 2, bgcolor: 'background.paper', boxShadow: 1 }}>
+          <Avatar src={avatar} sx={{ width: 72, height: 72 }} />
+          <Box>
+            <Typography variant="h6" fontWeight={700}>{name}</Typography>
+            {bio && <Typography variant="body2" color="text.secondary">{bio}</Typography>}
+          </Box>
+        </Box>
+      </Container>
+    </Box>
+  );
+}
+
+function WhyChooseUsBlock({ props }: any) {
+  const title = props?.title || 'Why choose us';
+  const points: Array<{ icon?: string; title?: string; desc?: string }> = Array.isArray(props?.items) ? props.items : [];
+  const cols = Math.max(1, Math.min(4, Number(props?.cols ?? 3)));
+  return (
+    <Container sx={{ my: 2 }}>
+      <Typography variant="h6" sx={{ mb: 1 }}>{title}</Typography>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: `repeat(${cols}, minmax(0,1fr))` } }}>
+        {points.map((it, i) => (
+          <Card key={i} sx={{ p: 2, display: 'flex', gap: 1 }}>
+            {it.icon && <Avatar src={it.icon} sx={{ width: 28, height: 28 }} />}
+            <Box>
+              <Typography variant="subtitle2">{it.title || 'Benefit'}</Typography>
+              {it.desc && <Typography variant="body2" color="text.secondary">{it.desc}</Typography>}
+            </Box>
+          </Card>
+        ))}
+        {points.length === 0 && (
+          <Box sx={{ p: 2, border: '1px dashed #e5e7eb', borderRadius: 1 }}>
+            <Typography variant="body2" color="text.secondary">Add reasons to the items list.</Typography>
+          </Box>
+        )}
+      </Box>
+    </Container>
+  );
+}
+
+function GallerySliderBlock({ props }: any) {
+  const images: string[] = Array.isArray(props?.images) ? props.images : [];
+  const autoplay: boolean = Boolean(props?.autoplay);
+  const interval: number = Math.max(1000, Number(props?.interval ?? 3000));
+  const showArrows: boolean = props?.showArrows !== false; // default true
+  const showDots: boolean = Boolean(props?.showDots);
+
+  const [index, setIndex] = useState(0);
+  const timerRef = useRef<any>(null);
+  const count = images.length;
+  const goTo = (i: number) => setIndex(((i % Math.max(count,1)) + Math.max(count,1)) % Math.max(count,1));
+  const next = () => goTo(index + 1);
+  const prev = () => goTo(index - 1);
+
+  useEffect(() => {
+    if (!autoplay || count <= 1) return;
+    timerRef.current && clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => setIndex((i) => (i + 1) % count), interval);
+    return () => timerRef.current && clearInterval(timerRef.current);
+  }, [autoplay, interval, count]);
+
+  return (
+    <Container sx={{ my: 2 }}>
+      {props?.title && <Typography variant="h6" sx={{ mb: 1 }}>{props.title}</Typography>}
+      <Box sx={{ position: 'relative' }}>
+        <Box sx={{ width: '100%', height: 260, borderRadius: 1, overflow: 'hidden', bgcolor: '#f3f4f6', display: 'grid', placeItems: 'center' }}>
+          {count > 0 ? (
+            <img src={images[index]} alt={`slide-${index}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <Typography variant="body2" color="text.secondary">Add images to the gallery</Typography>
+          )}
+        </Box>
+        {showArrows && count > 1 && (
+          <>
+            <Button size="small" variant="contained" onClick={prev} sx={{ minWidth: 0, position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }}>{"<"}</Button>
+            <Button size="small" variant="contained" onClick={next} sx={{ minWidth: 0, position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)' }}>{">"}</Button>
+          </>
+        )}
+        {showDots && count > 1 && (
+          <Box sx={{ position: 'absolute', bottom: 8, left: 0, right: 0, display: 'flex', gap: 1, justifyContent: 'center' }}>
+            {images.map((_: any, i: number) => (
+              <Box key={i} onClick={() => goTo(i)} sx={{ width: 8, height: 8, borderRadius: '50%', cursor: 'pointer', bgcolor: i === index ? 'primary.main' : '#d1d5db' }} />
+            ))}
+          </Box>
+        )}
+      </Box>
+    </Container>
+  );
+}
+
 function HeaderBlock({ props, device }: any) {
   const menu = Array.isArray(props?.menu) ? props.menu : [];
   const mqMobile = useMediaQuery('(max-width: 600px)');
@@ -593,6 +693,39 @@ export default function PreviewRenderer({ data, editorMode = false, onEditBlock,
         const bgcolor = b?.props?.bg;
         const color = b?.props?.color;
         switch (b.type) {
+          case "ProfileHeader":
+            return (
+              <Box key={b.id} sx={{ position: "relative", opacity: b?.props?.hidden ? 0.4 : 1, outline, cursor: editorMode ? 'pointer' : 'default', p: padding, border, borderRadius: radius, bgcolor, color }} onClick={() => editorMode && onSelectBlock && onSelectBlock(b)} onContextMenu={(e) => { if (editorMode) { e.preventDefault(); onEditBlock && onEditBlock(b); } }}>
+                {editorMode && (
+                  <IconButton size="small" sx={{ position: "absolute", top: 4, right: 4, zIndex: 10, bgcolor: 'white' }} onClick={(e) => onOpenMenu && onOpenMenu(b, { x: e.clientX, y: e.clientY })}>
+                    <MoreVertIcon fontSize="small" />
+                  </IconButton>
+                )}
+                <ProfileHeaderBlock props={b.props} />
+              </Box>
+            );
+          case "WhyChooseUs":
+            return (
+              <Box key={b.id} sx={{ position: "relative", opacity: b?.props?.hidden ? 0.4 : 1, outline, cursor: editorMode ? 'pointer' : 'default', p: padding, border, borderRadius: radius, bgcolor, color }} onClick={() => editorMode && onSelectBlock && onSelectBlock(b)} onContextMenu={(e) => { if (editorMode) { e.preventDefault(); onEditBlock && onEditBlock(b); } }}>
+                {editorMode && (
+                  <IconButton size="small" sx={{ position: "absolute", top: 4, right: 4, zIndex: 10, bgcolor: 'white' }} onClick={(e) => onOpenMenu && onOpenMenu(b, { x: e.clientX, y: e.clientY })}>
+                    <MoreVertIcon fontSize="small" />
+                  </IconButton>
+                )}
+                <WhyChooseUsBlock props={b.props} />
+              </Box>
+            );
+          case "GallerySlider":
+            return (
+              <Box key={b.id} sx={{ position: "relative", opacity: b?.props?.hidden ? 0.4 : 1, outline, cursor: editorMode ? 'pointer' : 'default', p: padding, border, borderRadius: radius, bgcolor, color }} onClick={() => editorMode && onSelectBlock && onSelectBlock(b)} onContextMenu={(e) => { if (editorMode) { e.preventDefault(); onEditBlock && onEditBlock(b); } }}>
+                {editorMode && (
+                  <IconButton size="small" sx={{ position: "absolute", top: 4, right: 4, zIndex: 10, bgcolor: 'white' }} onClick={(e) => onOpenMenu && onOpenMenu(b, { x: e.clientX, y: e.clientY })}>
+                    <MoreVertIcon fontSize="small" />
+                  </IconButton>
+                )}
+                <GallerySliderBlock props={b.props} />
+              </Box>
+            );
           case "TopBar":
             return (
               <Box key={b.id} sx={{ position: "relative", opacity: b?.props?.hidden ? 0.4 : 1, outline, cursor: editorMode ? 'pointer' : 'default', p: padding, border, borderRadius: radius, bgcolor, color }} onClick={() => editorMode && onSelectBlock && onSelectBlock(b)} onContextMenu={(e) => { if (editorMode) { e.preventDefault(); onEditBlock && onEditBlock(b); } }}>

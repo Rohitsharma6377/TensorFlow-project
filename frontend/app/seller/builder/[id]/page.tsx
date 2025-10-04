@@ -369,6 +369,9 @@ export default function BuilderPreviewPage() {
       type === "BlogGrid" ? { id: idGen, type: "BlogGrid", props: { title: "From the blog", cols: 3, layout: 'grid', items: [ { image: "/banner4.jpg", title: "Welcome", excerpt: "Short intro.", href: "#", slug: "welcome" } ] } } :
       type === "BlogPost" ? { id: idGen, type: "BlogPost", props: { title: "Welcome", author: "", date: "", image: "/banner4.jpg", html: "<p>Write your blog content...</p>" } } :
       type === "ProductSlider" ? { id: idGen, type: "ProductSlider", props: { title: "Products", limit: 8 } } :
+      type === "ProfileHeader" ? { id: idGen, type: "ProfileHeader", props: { name: "Seller Name", bio: "Write a short bio...", avatar: "", banner: "" } } :
+      type === "WhyChooseUs" ? { id: idGen, type: "WhyChooseUs", props: { title: "Why choose us", cols: 3, items: [ { icon: "", title: "Quality", desc: "Best in class" } ] } } :
+      type === "GallerySlider" ? { id: idGen, type: "GallerySlider", props: { title: "Gallery", images: [], autoplay: true, interval: 3000, showArrows: true, showDots: false } } :
       { id: idGen, type: "Footer", props: { links: [ { label: "Shipping", href: "/shops/sample/pages/shipping-policy" } ] } };
 
     const next = { ...allData } as any;
@@ -538,6 +541,7 @@ export default function BuilderPreviewPage() {
               <option value="home">Home</option>
               <option value="products">Products</option>
               <option value="product">Product</option>
+              <option value="profile">Profile</option>
             </Select>
           </FormControl>
           <ToggleButtonGroup exclusive size="small" value={device} onChange={(e, v) => v && setDevice(v)} sx={{ mr: 1 }}>
@@ -565,6 +569,10 @@ export default function BuilderPreviewPage() {
             <Divider sx={{ my: 1 }} />
             <Typography variant="subtitle2" sx={{ mb: 1 }}>Add section</Typography>
             <Stack spacing={1}>
+              {/* Profile page sections */}
+              <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("ProfileHeader")}>Profile Header</Button>
+              <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("WhyChooseUs")}>Why choose us</Button>
+              <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("GallerySlider")}>Gallery slider</Button>
               <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("TopBar")}>TopBar</Button>
               <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("Header", "0")}>Header (v1)</Button>
               <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("Header", "1")}>Header (v2)</Button>
@@ -840,6 +848,98 @@ export default function BuilderPreviewPage() {
                 )}
                 {selectedBlock.type === 'RichText' && (
                   <TextField size="small" multiline minRows={4} label="HTML" value={selectedBlock.props?.html || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, html: e.target.value } }))} />
+                )}
+                {/* ProfileHeader editor (non-MUI inputs for main bits) */}
+                {selectedBlock.type === 'ProfileHeader' && (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-600">Display name</label>
+                      <input className="w-full border rounded px-2 py-1 text-sm" value={selectedBlock.props?.name || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, name: e.target.value } }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-600">Bio</label>
+                      <textarea className="w-full border rounded px-2 py-1 text-sm" rows={3} value={selectedBlock.props?.bio || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, bio: e.target.value } }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-600">Avatar URL</label>
+                      <div className="flex gap-2">
+                        <input className="flex-1 border rounded px-2 py-1 text-sm" value={selectedBlock.props?.avatar || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, avatar: e.target.value } }))} />
+                        <button type="button" className="px-2 border rounded text-xs" onClick={() => setMediaOpen({ multi: false, onPick: (urls) => { const [u] = urls; updateSelected(b => ({ ...b, props: { ...b.props, avatar: u } })); setMediaOpen(false); } })}>Pick</button>
+                        <label className="px-2 border rounded text-xs cursor-pointer">Upload<input hidden type="file" accept="image/*" onChange={async (e) => { const [u] = await uploadFiles(Array.from(e.target.files||[])); if (u) updateSelected(b => ({ ...b, props: { ...b.props, avatar: u } })); }} /></label>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-600">Banner URL</label>
+                      <div className="flex gap-2">
+                        <input className="flex-1 border rounded px-2 py-1 text-sm" value={selectedBlock.props?.banner || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, banner: e.target.value } }))} />
+                        <button type="button" className="px-2 border rounded text-xs" onClick={() => setMediaOpen({ multi: false, onPick: (urls) => { const [u] = urls; updateSelected(b => ({ ...b, props: { ...b.props, banner: u } })); setMediaOpen(false); } })}>Pick</button>
+                        <label className="px-2 border rounded text-xs cursor-pointer">Upload<input hidden type="file" accept="image/*" onChange={async (e) => { const [u] = await uploadFiles(Array.from(e.target.files||[])); if (u) updateSelected(b => ({ ...b, props: { ...b.props, banner: u } })); }} /></label>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* WhyChooseUs editor */}
+                {selectedBlock.type === 'WhyChooseUs' && (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-600">Title</label>
+                      <input className="w-full border rounded px-2 py-1 text-sm" value={selectedBlock.props?.title || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, title: e.target.value } }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-600">Columns</label>
+                      <input className="w-24 border rounded px-2 py-1 text-sm" type="number" value={selectedBlock.props?.cols ?? 3} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, cols: Math.max(1, Math.min(4, Number(e.target.value))) } }))} />
+                    </div>
+                    <Typography variant="body2">Points ({Array.isArray(selectedBlock.props?.items) ? selectedBlock.props.items.length : 0})</Typography>
+                    <Stack spacing={1}>
+                      {(Array.isArray(selectedBlock.props?.items) ? selectedBlock.props.items : []).map((it: any, i: number) => (
+                        <Box key={i} sx={{ p: 1, border: '1px solid #e5e7eb', borderRadius: 1 }}>
+                          <div className="grid grid-cols-1 gap-2">
+                            <div className="flex gap-2 items-center">
+                              <input className="flex-1 border rounded px-2 py-1 text-sm" placeholder="Icon URL" value={it.icon || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), icon: e.target.value }; return { ...b, props: { ...b.props, items: arr } }; })} />
+                              <button type="button" className="px-2 border rounded text-xs" onClick={() => setMediaOpen({ multi: false, onPick: (urls) => { const [u] = urls; updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), icon: u }; return { ...b, props: { ...b.props, items: arr } }; }); setMediaOpen(false); } })}>Pick</button>
+                              <label className="px-2 border rounded text-xs cursor-pointer">Upload<input hidden type="file" accept="image/*" onChange={async (e) => { const [u] = await uploadFiles(Array.from(e.target.files||[])); if (u) updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), icon: u }; return { ...b, props: { ...b.props, items: arr } }; }); }} /></label>
+                            </div>
+                            <input className="w-full border rounded px-2 py-1 text-sm" placeholder="Title" value={it.title || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), title: e.target.value }; return { ...b, props: { ...b.props, items: arr } }; })} />
+                            <textarea className="w-full border rounded px-2 py-1 text-sm" rows={2} placeholder="Description" value={it.desc || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), desc: e.target.value }; return { ...b, props: { ...b.props, items: arr } }; })} />
+                            <button type="button" className="px-2 py-1 border rounded text-xs" onClick={() => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr.splice(i,1); return { ...b, props: { ...b.props, items: arr } }; })}>Remove</button>
+                          </div>
+                        </Box>
+                      ))}
+                    </Stack>
+                    <button type="button" className="mt-1 px-2 py-1 border rounded text-xs" onClick={() => updateSelected(b => ({ ...b, props: { ...b.props, items: [ ...(b.props?.items || []), { icon: '', title: '', desc: '' } ] } }))}>Add point</button>
+                  </>
+                )}
+
+                {/* GallerySlider editor */}
+                {selectedBlock.type === 'GallerySlider' && (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-600">Title</label>
+                      <input className="w-full border rounded px-2 py-1 text-sm" value={selectedBlock.props?.title || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, title: e.target.value } }))} />
+                    </div>
+                    <div className="mt-1">
+                      <div className="flex gap-2 text-xs">
+                        <label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(selectedBlock.props?.autoplay)} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, autoplay: e.target.checked } }))} /> Autoplay</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" checked={selectedBlock.props?.showArrows !== false} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, showArrows: e.target.checked } }))} /> Show arrows</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" checked={Boolean(selectedBlock.props?.showDots)} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, showDots: e.target.checked } }))} /> Show dots</label>
+                        <div className="flex items-center gap-2"><span>Interval</span><input className="w-24 border rounded px-1 py-0.5 text-xs" type="number" value={selectedBlock.props?.interval ?? 3000} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, interval: Math.max(1000, Number(e.target.value)) } }))} /></div>
+                      </div>
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      <label className="text-xs text-slate-600">Images</label>
+                      <div className="flex gap-2">
+                        <button type="button" className="px-2 border rounded text-xs" onClick={() => setMediaOpen({ multi: true, onPick: (urls) => { updateSelected(b => ({ ...b, props: { ...b.props, images: [ ...(b.props?.images || []), ...urls ] } })); setMediaOpen(false); } })}>Pick</button>
+                        <label className="px-2 border rounded text-xs cursor-pointer">Upload<input hidden multiple type="file" accept="image/*" onChange={async (e) => { const urls = await uploadFiles(Array.from(e.target.files||[])); updateSelected(b => ({ ...b, props: { ...b.props, images: [ ...(b.props?.images || []), ...urls ] } })); }} /></label>
+                      </div>
+                      {(selectedBlock.props?.images || []).map((u: string, i: number) => (
+                        <div key={`${u}-${i}`} className="flex items-center gap-2 text-xs">
+                          <input className="flex-1 border rounded px-2 py-1" value={u} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.images)? [...b.props.images]:[]; arr[i] = e.target.value; return { ...b, props: { ...b.props, images: arr } }; })} />
+                          <button type="button" className="px-2 border rounded" onClick={() => updateSelected(b => { const arr = Array.isArray(b.props?.images)? [...b.props.images]:[]; arr.splice(i,1); return { ...b, props: { ...b.props, images: arr } }; })}>Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 )}
                 {selectedBlock.type === 'ProductSlider' && (
                   <>
