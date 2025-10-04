@@ -7,8 +7,69 @@ const Follow = require('../models/Follow');
 const ShopReview = require('../models/ShopReview');
 const ShopReport = require('../models/ShopReport');
 const Message = require('../models/Message');
-
 const router = express.Router();
+
+// Save or load code sessions for the builder (owner/admin)
+// Shape: { files: Record<path, string>, meta?: any }
+router.put(
+  '/:id/code/:sessionId',
+  auth(['seller', 'admin', 'superadmin']),
+  requireRole(['seller', 'admin', 'superadmin']),
+  async (req, res) => {
+    try {
+      const shop = await Shop.findById(req.params.id)
+      if (!shop) return res.status(404).json({ success: false, message: 'Shop not found' })
+
+      const isOwner = String(shop.owner) === String(req.user.id)
+      const isAdmin = ['admin', 'superadmin'].includes(req.user.role)
+      if (!isOwner && !isAdmin) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+      const sessionId = String(req.params.sessionId)
+      const payload = req.body || {}
+      if (!payload || typeof payload !== 'object') {
+        return res.status(400).json({ success: false, message: 'Invalid payload' })
+      }
+
+      const meta = shop.metadata?.toObject?.() || shop.metadata || {}
+      if (!meta.builder) meta.builder = {}
+      if (!meta.builder.code) meta.builder.code = {}
+      meta.builder.code[sessionId] = { ...payload, updatedAt: new Date().toISOString() }
+
+      const updated = await Shop.findByIdAndUpdate(
+        req.params.id,
+        { $set: { metadata: meta } },
+        { new: true }
+      )
+      return res.json({ success: true, code: updated.metadata.builder.code[sessionId] })
+    } catch (err) {
+      console.error('Save code session error', err)
+      return res.status(500).json({ success: false, message: 'Server error' })
+    }
+  }
+)
+
+router.get(
+  '/:id/code/:sessionId',
+  auth(['seller', 'admin', 'superadmin']),
+  requireRole(['seller', 'admin', 'superadmin']),
+  async (req, res) => {
+    try {
+      const shop = await Shop.findById(req.params.id).select('owner metadata')
+      if (!shop) return res.status(404).json({ success: false, message: 'Shop not found' })
+      const isOwner = String(shop.owner) === String(req.user.id)
+      const isAdmin = ['admin', 'superadmin'].includes(req.user.role)
+      if (!isOwner && !isAdmin) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+      const meta = shop.metadata?.toObject?.() || shop.metadata || {}
+      const session = meta?.builder?.code?.[String(req.params.sessionId)] || null
+      return res.json({ success: true, code: session })
+    } catch (err) {
+      console.error('Get code session error', err)
+      return res.status(500).json({ success: false, message: 'Server error' })
+    }
+  }
+)
+
 
 // Public list shops with optional filters: ?featured=true&limit=10&q=term
 router.get('/', async (req, res) => {
@@ -172,6 +233,96 @@ router.post(
       return res.status(201).json({ success: true, shop });
     } catch (err) {
       console.error('Create shop error', err);
+      return res.status(500).json({ success: false, message: 'Server error' });
+    }
+  }
+);
+
+// Read back builder JSON (owner/admin)
+router.get(
+  '/:id/builder',
+  auth(['seller', 'admin', 'superadmin']),
+  requireRole(['seller', 'admin', 'superadmin']),
+  async (req, res) => {
+    try {
+      const shop = await Shop.findById(req.params.id).select('owner metadata');
+      if (!shop) return res.status(404).json({ success: false, message: 'Shop not found' });
+
+      const isOwner = String(shop.owner) === String(req.user.id);
+      const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
+      if (!isOwner && !isAdmin) return res.status(403).json({ success: false, message: 'Forbidden' });
+
+      const builder = shop?.metadata?.builder || null;
+      return res.json({ success: true, builder });
+    } catch (err) {
+      console.error('Get builder error', err);
+      return res.status(500).json({ success: false, message: 'Server error' });
+    }
+  }
+);
+
+// Save/replace builder JSON into shop.metadata.builder (owner/admin)
+router.put(
+  '/:id/builder',
+  auth(['seller', 'admin', 'superadmin']),
+  requireRole(['seller', 'admin', 'superadmin']),
+  async (req, res) => {
+    try {
+      const shop = await Shop.findById(req.params.id);
+      if (!shop) return res.status(404).json({ success: false, message: 'Shop not found' });
+
+      const isOwner = String(shop.owner) === String(req.user.id);
+      const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
+      if (!isOwner && !isAdmin) return res.status(403).json({ success: false, message: 'Forbidden' });
+
+      const builder = req.body?.builder;
+      if (!builder || typeof builder !== 'object') {
+        return res.status(400).json({ success: false, message: 'builder object is required' });
+      }
+
+      const meta = shop.metadata?.toObject?.() || shop.metadata || {};
+      meta.builder = builder;
+
+      const updated = await Shop.findByIdAndUpdate(
+        req.params.id,
+        { $set: { metadata: meta } },
+        { new: true }
+      );
+      return res.json({ success: true, shop: updated });
+    } catch (err) {
+      console.error('Save builder error', err);
+      return res.status(500).json({ success: false, message: 'Server error' });
+    }
+  }
+);
+
+// Merge arbitrary metadata. If body.builder present, set metadata.builder as well
+router.put(
+  '/:id/metadata',
+  auth(['seller', 'admin', 'superadmin']),
+  requireRole(['seller', 'admin', 'superadmin']),
+  async (req, res) => {
+    try {
+      const shop = await Shop.findById(req.params.id);
+      if (!shop) return res.status(404).json({ success: false, message: 'Shop not found' });
+
+      const isOwner = String(shop.owner) === String(req.user.id);
+      const isAdmin = ['admin', 'superadmin'].includes(req.user.role);
+      if (!isOwner && !isAdmin) return res.status(403).json({ success: false, message: 'Forbidden' });
+
+      const meta = shop.metadata?.toObject?.() || shop.metadata || {};
+      const input = req.body || {};
+      const next = { ...meta, ...input };
+      if (input.builder !== undefined) next.builder = input.builder;
+
+      const updated = await Shop.findByIdAndUpdate(
+        req.params.id,
+        { $set: { metadata: next } },
+        { new: true }
+      );
+      return res.json({ success: true, shop: updated });
+    } catch (err) {
+      console.error('Update metadata error', err);
       return res.status(500).json({ success: false, message: 'Server error' });
     }
   }

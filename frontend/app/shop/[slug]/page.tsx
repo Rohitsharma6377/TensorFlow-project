@@ -1,4 +1,10 @@
+"use client";
+
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import { ShopsAdminAPI } from '@/lib/api'
+import PreviewRenderer from '@/components/builder/PreviewRenderer'
 
 type Theme = {
   colors?: { primary?: string; accent?: string; background?: string; text?: string }
@@ -9,28 +15,146 @@ type Theme = {
   }
 }
 
-async function getShop(slug: string) {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000'
-  const res = await fetch(`${base}/api/v1/shops/${encodeURIComponent(slug)}`, { next: { revalidate: 60 } })
-  const data = await res.json()
-  return data?.shop || null
-}
+export default function ThemedShopPage({ params }: { params: { slug: string } }) {
+  const qs = useSearchParams();
+  const [loading, setLoading] = useState(true)
+  const [shop, setShop] = useState<any | null>(null)
+  const [products, setProducts] = useState<any[]>([])
+  const [builderData, setBuilderData] = useState<any | null>(null)
 
-async function getProducts(shopId: string, limit = 100) {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000'
-  const res = await fetch(`${base}/api/v1/products?shopId=${encodeURIComponent(shopId)}&limit=${limit}`, { next: { revalidate: 60 } })
-  if (!res.ok) return []
-  const data = await res.json()
-  return data?.products || []
-}
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        setLoading(true)
+        const base = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:4000'
+        const res = await fetch(`${base}/api/v1/shops/${encodeURIComponent(params.slug)}`, { cache: 'no-store' })
+        const data = await res.json()
+        const s = data?.shop || null
+        if (!s) { if (!cancelled) { setShop(null); } return }
+        if (!cancelled) setShop(s)
+        // products
+        try {
+          const rp = await fetch(`${base}/api/v1/products?shopId=${encodeURIComponent(s._id)}&limit=100`, { cache: 'no-store' })
+          const dp = await rp.json().catch(() => ({}))
+          if (!cancelled) setProducts(dp?.products || [])
+        } catch { if (!cancelled) setProducts([]) }
+        // builder from server metadata
+        let serverBuilder = s?.metadata?.builder || null
+        // merge with localStorage builder if present for this shop id or slug
+        try {
+          const localById = typeof window !== 'undefined' ? localStorage.getItem(`builder:${s._id}`) : null
+          const localBySlug = typeof window !== 'undefined' ? localStorage.getItem(`builder:${params.slug}`) : null
+          const parsedLocal = localById ? JSON.parse(localById) : (localBySlug ? JSON.parse(localBySlug) : null)
+          if (parsedLocal && typeof parsedLocal === 'object') {
+            serverBuilder = serverBuilder || {}
+            // Prefer local if exists
+            serverBuilder = { ...serverBuilder, ...parsedLocal }
+          }
+        } catch {}
+        if (!cancelled) setBuilderData(serverBuilder)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [params.slug])
 
-export default async function ThemedShopPage({ params }: { params: { slug: string } }) {
-  const shop = await getShop(params.slug)
+  // Support quick preview/apply from builder id: /shop/[slug]?builder=<id>
+  useEffect(() => {
+    if (!shop) return;
+    const builderId = qs?.get('builder');
+    if (!builderId) return;
+    let cancelled = false;
+    (async () => {
+      // 1) Try localStorage fast path
+      try {
+        const raw = typeof window !== 'undefined' ? localStorage.getItem(`builder:${builderId}`) : null;
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (!cancelled) setBuilderData((prev: any) => ({ ...(prev || {}), ...(parsed || {}) }));
+          try { localStorage.setItem(`builder:${shop._id}`, raw); } catch {}
+          try { localStorage.setItem(`builder:${shop.slug}`, raw); } catch {}
+        }
+      } catch {}
+      // 2) Also try server code session for this builder id and hydrate from files
+      try {
+        const res = await ShopsAdminAPI.getCode(String(shop._id), String(builderId));
+        const files = (res as any)?.code?.files || {};
+        const next: any = { ...(builderData || {}) };
+        const paths = Object.keys(files || {});
+        for (const p of paths) {
+          if (!p || typeof files[p] !== 'string') continue;
+          const norm = p.replace(/\\/g, '/');
+          if (norm.endsWith('builder/home.json')) {
+            try { next.home = JSON.parse(files[p]); } catch {}
+          } else if (norm.endsWith('builder/products.json')) {
+            try { next.products = JSON.parse(files[p]); } catch {}
+          } else if (norm.endsWith('builder/product.json')) {
+            try { next.product = JSON.parse(files[p]); } catch {}
+          }
+        }
+        if (Object.keys(next).length > 0) {
+          try { console.info('[Shop] hydrated from session files', { builderId, sections: Object.keys(next) }); } catch {}
+          if (!cancelled) setBuilderData(next);
+          try { localStorage.setItem(`builder:${shop._id}`, JSON.stringify(next)); } catch {}
+          try { localStorage.setItem(`builder:${shop.slug}`, JSON.stringify(next)); } catch {}
+          try { localStorage.setItem(`builder:${builderId}`, JSON.stringify(next)); } catch {}
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [qs, shop]);
+
+  // Auto-hydrate from last saved session (set by Builder page) even without query param
+  useEffect(() => {
+    if (!shop) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const lastId = (typeof window !== 'undefined' ? (localStorage.getItem(`builder:lastSessionId:${shop._id}`) || localStorage.getItem(`builder:lastSessionId:${shop.slug}`)) : null) || '';
+        if (!lastId) return;
+        // If we already have builderData with blocks, skip
+        const hasBlocks = Array.isArray(builderData?.home?.blocks) && builderData!.home!.blocks!.length > 0;
+        if (hasBlocks) return;
+        // Try localStorage snapshot first
+        try {
+          const raw = typeof window !== 'undefined' ? localStorage.getItem(`builder:${lastId}`) : null;
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (!cancelled) setBuilderData((prev: any) => ({ ...(prev || {}), ...(parsed || {}) }));
+          }
+        } catch {}
+        // Fallback to server code files
+        try {
+          const res = await ShopsAdminAPI.getCode(String(shop._id), String(lastId));
+          const files = (res as any)?.code?.files || {};
+          const next: any = { ...(builderData || {}) };
+          const paths = Object.keys(files || {});
+          for (const p of paths) {
+            if (!p || typeof files[p] !== 'string') continue;
+            const norm = p.replace(/\\/g, '/');
+            if (norm.endsWith('builder/home.json')) { try { next.home = JSON.parse(files[p]); } catch {} }
+            if (norm.endsWith('builder/products.json')) { try { next.products = JSON.parse(files[p]); } catch {} }
+            if (norm.endsWith('builder/product.json')) { try { next.product = JSON.parse(files[p]); } catch {} }
+          }
+          if (Object.keys(next).length > 0) {
+            try { console.info('[Shop] hydrated from last session files', { lastId, sections: Object.keys(next) }); } catch {}
+            if (!cancelled) setBuilderData(next);
+            try { localStorage.setItem(`builder:${shop._id}`, JSON.stringify(next)); } catch {}
+            try { localStorage.setItem(`builder:${shop.slug}`, JSON.stringify(next)); } catch {}
+          }
+        } catch {}
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [shop, builderData]);
+
+  if (loading) return <div className="max-w-6xl mx-auto p-6">Loading...</div>
   if (!shop) return <div className="max-w-6xl mx-auto p-6">Shop not found</div>
 
-  const products = await getProducts(shop._id, 100)
   const theme: Theme = shop?.metadata?.theme || {}
-  const builder = shop?.metadata?.builder || {}
 
   // Fallback colors
   const colors = {
@@ -125,7 +249,7 @@ export default async function ThemedShopPage({ params }: { params: { slug: strin
           {list.map((p: any) => (
             <Link key={p._id} href={`/shop/${shop.slug}/products/${p.slug ?? p._id}`} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
               <div className="aspect-square bg-slate-100">
-                <img src={p.mainImage || p.images?.[0] || '/product-placeholder.png'} alt={p.title} className="w-full h-full object-cover" />
+                <img src={p.mainImage || p.images?.[0] || 'https://dummyimage.com/600x600/e5e7eb/111827&text=Product'} alt={p.title} className="w-full h-full object-cover" />
               </div>
               <div className="p-2">
                 <div className="text-sm font-medium line-clamp-2">{p.title}</div>
@@ -179,15 +303,37 @@ export default async function ThemedShopPage({ params }: { params: { slug: strin
     }
   }
 
-  // If builder.home exists, render it
-  const builderBlocks = Array.isArray(builder?.home?.blocks) ? builder.home.blocks : null
+  // If builder.home exists, render it (normalize different shapes)
+  const builderBlocks = (() => {
+    const home = (builderData as any)?.home;
+    if (!home) return null;
+    // Common case: { home: { blocks: [...] } }
+    if (Array.isArray(home?.blocks)) return home.blocks;
+    // Sometimes stored directly as an array
+    if (Array.isArray(home)) return home;
+    // Stringified JSON
+    if (typeof home === 'string') {
+      try {
+        const parsed = JSON.parse(home);
+        if (Array.isArray(parsed?.blocks)) return parsed.blocks;
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
+    // Object but blocks nested differently
+    if (home && typeof home === 'object') {
+      for (const k of Object.keys(home)) {
+        const v = (home as any)[k];
+        if (Array.isArray(v)) return v;
+        if (Array.isArray(v?.blocks)) return v.blocks;
+      }
+    }
+    return null;
+  })()
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-8" style={{ color: colors.text }}>
       {builderBlocks && builderBlocks.length > 0 ? (
-        <>
-          {builderBlocks.map((b: any, i: number) => renderBlock(b, i))}
-        </>
+        <PreviewRenderer data={{ home: { blocks: builderBlocks } }} />
       ) : (
         <>
       {/* Header */}
@@ -250,7 +396,7 @@ export default async function ThemedShopPage({ params }: { params: { slug: strin
             {featuredList.map((p: any) => (
               <Link key={p._id} href={`/shop/${shop.slug}/products/${p.slug ?? p._id}`} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
                 <div className="aspect-square bg-slate-100">
-                  <img src={p.mainImage || p.images?.[0] || '/product-placeholder.png'} alt={p.title} className="w-full h-full object-cover" />
+                  <img src={p.mainImage || p.images?.[0] || 'https://dummyimage.com/600x600/e5e7eb/111827&text=Product'} alt={p.title} className="w-full h-full object-cover" />
                 </div>
                 <div className="p-2">
                   <div className="text-sm font-medium line-clamp-2">{p.title}</div>

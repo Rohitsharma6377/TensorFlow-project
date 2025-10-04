@@ -23,6 +23,8 @@ import notificationsReducer from './slice/notificationSlice'
 import adminUsersReducer from './slice/adminUsersSlice'
 import payoutAdminReducer from './slice/payoutAdminSlice'
 import premiumMemberReducer from './slice/premiumMemberSlice'
+import builderReducer from './slice/builderSlice'
+import codeStudioReducer from './slice/codeStudioSlice'
 
 export const store = configureStore({
   reducer: {
@@ -49,6 +51,8 @@ export const store = configureStore({
     adminUsers: adminUsersReducer,
     payouts: payoutAdminReducer,
     premiumMembers: premiumMemberReducer,
+    builder: builderReducer,
+    codeStudio: codeStudioReducer,
   },
 })
 

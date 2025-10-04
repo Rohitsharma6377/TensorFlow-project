@@ -1,21 +1,33 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Box, Container, AppBar, Toolbar, IconButton, Typography, Button, Drawer, List, ListItemButton, ListItemText, Divider, Stack, Menu, MenuItem, Select, FormControl, InputLabel, TextField, Dialog, DialogTitle, DialogContent, DialogActions, ToggleButtonGroup, ToggleButton } from "@mui/material";
+import { Box, Container, AppBar, Toolbar, IconButton, Typography, Button, Drawer, List, ListItemButton, ListItemText, Divider, Stack, Menu, MenuItem, Select, FormControl, InputLabel, TextField, Dialog, DialogTitle, DialogContent, DialogActions, ToggleButtonGroup, ToggleButton, FormControlLabel, Switch, Checkbox, CircularProgress, Avatar } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AddIcon from "@mui/icons-material/Add";
 import PreviewRenderer, { type BuilderData } from "@/components/builder/PreviewRenderer";
+import { ProductAPI, AuthAPI, api as apiRequest, type ProductDTO } from "@/lib/api";
+import { useAppDispatch, useAppSelector } from "@/store";
+import { saveBuilderDesign } from "@/store/slice/builderSlice";
+import { meThunk } from "@/store/slice/authSlice";
+import { loadCodeSession, saveCodeSession, createNewSession, setFile, setMeta } from "@/store/slice/codeStudioSlice";
 
 type AllData = BuilderData & { product?: any; products?: any };
+
+// Module-level cache to survive component remounts / HMR
+const __loadedPairs = new Set<string>();
+const __initedSessions = new Set<string>();
 
 export default function BuilderPreviewPage() {
   const params = useParams<{ id: string }>();
   const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
   const router = useRouter();
   const qs = useSearchParams();
-  const isEditor = qs?.get("editor") === "1";
+  const isEditor = (qs?.get("editor") ?? "1") !== "0";
+  const dispatch = useAppDispatch();
+  const code = useAppSelector((s: any) => s.codeStudio);
+  const authUser = useAppSelector((s: any) => s.auth?.user);
   const [raw, setRaw] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ anchor: null | { x: number; y: number }; blockId?: string }>({ anchor: null });
   const [template, setTemplate] = useState<string>(qs?.get("template") || "home");
@@ -23,17 +35,161 @@ export default function BuilderPreviewPage() {
   const [mediaOpen, setMediaOpen] = useState<false | { multi: boolean; onPick: (urls: string[]) => void }>(false);
   const [device, setDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [mediaUrlsInput, setMediaUrlsInput] = useState<string>("");
-  const [productsDialog, setProductsDialog] = useState<null | { url: string }>(null);
+  const [mediaGallery, setMediaGallery] = useState<string[]>([]);
+  const [mediaLoading, setMediaLoading] = useState<boolean>(false);
+  const [productsDialog, setProductsDialog] = useState<null | { url?: string; mode?: 'picker' }>(null);
+  const [serverOnlyPublish, setServerOnlyPublish] = useState<boolean>(false);
+  const [productSearch, setProductSearch] = useState<string>("");
+  const [productLoading, setProductLoading] = useState<boolean>(false);
+  const [productResults, setProductResults] = useState<ProductDTO[]>([]);
+  const [productTempSelected, setProductTempSelected] = useState<string[]>([]);
+  const [productPage, setProductPage] = useState<number>(1);
+  const [productHasMore, setProductHasMore] = useState<boolean>(false);
+  // Cache shopId and init status to avoid repeated API calls in dev/StrictMode or re-renders
+  const [shopIdState, setShopIdState] = useState<string | null>(null);
+  const initRef = useRef<string | null>(null);
+  const lastLoadedRef = useRef<{ shopId: string; sessionId: string } | null>(null);
+
+  // Resolve logged-in seller shopId reliably (localStorage -> /api/v1/auth/me)
+  const resolveShopId = async (): Promise<string | null> => {
+    try {
+      // 0) Prefer Redux auth
+      const reduxShopId = authUser?.shop?._id || authUser?.shop?.id || null;
+      if (reduxShopId) return String(reduxShopId);
+      // 1) localStorage fallback
+      const uLocal = (() => { try { return JSON.parse(localStorage.getItem('user')||'{}'); } catch { return {}; } })();
+      const idLocal = uLocal?.shop?._id || uLocal?.shop?.id || '';
+      if (idLocal) return String(idLocal);
+    } catch {}
+    try {
+      const data = await AuthAPI.getCurrentUser();
+      const user = (data as any)?.user;
+      const id = user?.shop?._id || user?.shop?.id || null;
+      if (user) {
+        try { localStorage.setItem('user', JSON.stringify(user)); } catch {}
+      }
+      if (id) return String(id);
+    } catch {}
+    // Final fallback: ask backend for current user's shop
+    try {
+      const my = await apiRequest<any>('/api/v1/shops/my');
+      const sid = my?.shop?._id || my?.shop?.id || null;
+      if (sid) return String(sid);
+    } catch {
+      return null;
+    }
+    return null;
+  };
+
+  // Load or create a code session tied to this builder id
+  useEffect(() => {
+    if (!id) return;
+    // Guard to run only once per session id using ref + sessionStorage + module set
+    const initKey = `builder:init:${id}`;
+    if (initRef.current === id || (typeof window !== 'undefined' && sessionStorage.getItem(initKey) === '1') || __initedSessions.has(String(id))) {
+      return;
+    }
+    initRef.current = id as string;
+    try { if (typeof window !== 'undefined') sessionStorage.setItem(initKey, '1'); } catch {}
+    __initedSessions.add(String(id));
+    // Always ensure a session exists for this page
+    dispatch(createNewSession({ sessionId: id as string }));
+    (async () => {
+      if (!authUser) {
+        try { await dispatch(meThunk()).unwrap(); } catch {}
+      }
+      const shopId = await resolveShopId();
+      if (shopId) setShopIdState(shopId);
+      try { console.log('[Builder:init]', { id, shopId }); } catch {}
+      if (shopId) {
+        // Skip duplicate load if same pair already loaded
+        const pair = { shopId, sessionId: id as string };
+        const pairKey = `${pair.shopId}:${pair.sessionId}`;
+        const already = (lastLoadedRef.current && lastLoadedRef.current.shopId === pair.shopId && lastLoadedRef.current.sessionId === pair.sessionId) || __loadedPairs.has(pairKey) || code?.loading;
+        if (!already) {
+          lastLoadedRef.current = pair;
+          __loadedPairs.add(pairKey);
+          dispatch(loadCodeSession(pair)).catch((e: any) => { try { console.error('[Builder] loadCodeSession error', e); } catch {} });
+        }
+        dispatch(setMeta({ template, shopId, sessionId: id }));
+      } else {
+        dispatch(setMeta({ template, sessionId: id }));
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const load = () => {
     try {
       const key = `builder:${id}`;
       const v = typeof window !== "undefined" ? localStorage.getItem(key) : null;
-      setRaw(v);
+      if (!v) {
+        // initialize empty structure if not found
+        const init = { home: { blocks: [] }, products: { blocks: [] }, product: { blocks: [] } };
+        localStorage.setItem(key, JSON.stringify(init, null, 2));
+        setRaw(JSON.stringify(init));
+      } else {
+        setRaw(v);
+      }
     } catch {
       setRaw(null);
     }
   };
+
+  // Ensure all sections are mirrored into code session files before saving
+  const syncAllToFiles = () => {
+    try {
+      const obj = allData || { home: { blocks: [] }, products: { blocks: [] }, product: { blocks: [] } } as any;
+      ['home','products','product'].forEach((section) => {
+        const path = `builder/${section}.json`;
+        const content = JSON.stringify(obj[section] || { blocks: [] }, null, 2);
+        dispatch(setFile({ path, content }));
+      });
+      dispatch(setMeta({ lastEditedSection: template }));
+    } catch {}
+  };
+
+  // Load products for picker
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!productsDialog || productsDialog.mode !== 'picker') return;
+      try {
+        setProductLoading(true);
+        const res = await ProductAPI.list({ q: productSearch, limit: 25, page: productPage });
+        const items = (res as any)?.products || (res as any) || [];
+        if (!cancelled) setProductResults(items);
+        // Simple heuristic for hasMore: if page full
+        if (!cancelled) setProductHasMore(Array.isArray(items) && items.length === 25);
+      } finally {
+        if (!cancelled) setProductLoading(false);
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [productsDialog, productSearch, productPage]);
+
+  // Load seller media gallery when media dialog opens
+  useEffect(() => {
+    let cancelled = false;
+    async function loadGallery() {
+      if (!mediaOpen) return;
+      try {
+        setMediaLoading(true);
+        const sellerId = (() => { try { const u = JSON.parse(localStorage.getItem('user')||'{}'); return u?.shop?.id || u?.shop?._id || u?.id || u?._id || ''; } catch { return ''; } })();
+        const q = new URLSearchParams();
+        if (sellerId) q.set('sellerId', sellerId);
+        q.set('folder', 'builder');
+        const res = await fetch(`/api/v1/uploads?${q.toString()}`);
+        const data = await res.json().catch(() => ({ files: [] }));
+        if (!cancelled) setMediaGallery(Array.isArray(data.files) ? data.files : []);
+      } finally {
+        if (!cancelled) setMediaLoading(false);
+      }
+    }
+    loadGallery();
+    return () => { cancelled = true; };
+  }, [mediaOpen]);
 
   const updateSelected = (mutate: (b: any) => any) => {
     if (!allData || !selectedId) return;
@@ -50,13 +206,22 @@ export default function BuilderPreviewPage() {
 
   const uploadFiles = async (files: File[]): Promise<string[]> => {
     const urls: string[] = [];
+    const sellerId = (() => { try { const u = JSON.parse(localStorage.getItem('user')||'{}'); return u?.shop?.id || u?.shop?._id || u?.id || u?._id || ''; } catch { return ''; } })();
     for (const f of files) {
       const fd = new FormData();
       fd.append('file', f);
       fd.append('folder', 'builder');
+      if (sellerId) fd.append('sellerId', sellerId);
       const res = await fetch(`/api/v1/uploads`, { method: 'POST', body: fd as any });
       try { const data = await res.json(); urls.push(data?.url || data?.secure_url || data?.location || data?.path); } catch { }
     }
+    // refresh gallery after upload
+    try {
+      const q = new URLSearchParams(); if (sellerId) q.set('sellerId', sellerId); q.set('folder', 'builder');
+      const res = await fetch(`/api/v1/uploads?${q.toString()}`);
+      const data = await res.json().catch(() => ({ files: [] }));
+      setMediaGallery(Array.isArray(data.files) ? data.files : []);
+    } catch {}
     return urls.filter(Boolean);
   };
 
@@ -102,6 +267,11 @@ export default function BuilderPreviewPage() {
       const key = `builder:${id}`;
       localStorage.setItem(key, JSON.stringify(obj, null, 2));
       setRaw(JSON.stringify(obj));
+      // Sync into code session files and meta
+      const section = template;
+      const path = `builder/${section}.json`;
+      dispatch(setFile({ path, content: JSON.stringify((obj as any)[section] || { blocks: [] }, null, 2) }));
+      dispatch(setMeta({ lastEditedSection: section }));
     } catch {}
   };
 
@@ -159,6 +329,8 @@ export default function BuilderPreviewPage() {
       type === "Testimonials" ? { id: idGen, type: "Testimonials", props: { title: "Happy customers", items: [ { name: "Aarav", text: "Great quality!" } ] } } :
       type === "ContactForm" ? { id: idGen, type: "ContactForm", props: { title: "Contact us" } } :
       type === "RichText" ? { id: idGen, type: "RichText", props: { html: "<h2>About</h2><p>Write content...</p>" } } :
+      type === "BlogGrid" ? { id: idGen, type: "BlogGrid", props: { title: "From the blog", cols: 3, layout: 'grid', items: [ { image: "/banner4.jpg", title: "Welcome", excerpt: "Short intro.", href: "#", slug: "welcome" } ] } } :
+      type === "BlogPost" ? { id: idGen, type: "BlogPost", props: { title: "Welcome", author: "", date: "", image: "/banner4.jpg", html: "<p>Write your blog content...</p>" } } :
       type === "ProductSlider" ? { id: idGen, type: "ProductSlider", props: { title: "Products", limit: 8 } } :
       { id: idGen, type: "Footer", props: { links: [ { label: "Shipping", href: "/shops/sample/pages/shipping-policy" } ] } };
 
@@ -211,7 +383,7 @@ export default function BuilderPreviewPage() {
 
   return (
     <>
-    <Box sx={{ minHeight: "100vh", bgcolor: "#f6f7f9", display: "flex", flexDirection: "column" }}>
+    <Box sx={{ height: "100vh", bgcolor: "#f6f7f9", display: "flex", flexDirection: "column" }}>
       <AppBar position="sticky" color="default" elevation={0}>
         <Toolbar>
           <IconButton edge="start" onClick={() => router.back()} aria-label="Back">
@@ -219,7 +391,105 @@ export default function BuilderPreviewPage() {
           </IconButton>
           <Typography variant="h6" sx={{ ml: 1, flexGrow: 1 }}>Theme Editor</Typography>
           <Button onClick={load} sx={{ mr: 1 }}>Reload</Button>
-          <Button variant="outlined" onClick={loadDemo}>Load demo content</Button>
+          <Button variant="outlined" onClick={async () => {
+            // Load from backend for logged-in seller
+            const shopId = shopIdState || await resolveShopId();
+            if (!shopId || !id) return alert('Login required to load code');
+            try {
+              // Avoid redundant loads if same pair
+              const pair = { shopId, sessionId: id as string };
+              const pairKey = `${pair.shopId}:${pair.sessionId}`;
+              const already = (lastLoadedRef.current && lastLoadedRef.current.shopId === pair.shopId && lastLoadedRef.current.sessionId === pair.sessionId) || __loadedPairs.has(pairKey) || code?.loading;
+              const payload = already ? { files: code?.files || {} } : await dispatch(loadCodeSession(pair)).unwrap();
+              lastLoadedRef.current = pair;
+              __loadedPairs.add(pairKey);
+              try { console.info('[Builder] Loaded code session', { shopId, sessionId: id, files: Object.keys(payload?.files||{}) }); } catch {}
+              // Remember last session id for this shop so storefront can auto-hydrate
+              try { if (shopId) localStorage.setItem(`builder:lastSessionId:${shopId}`, String(id)); } catch {}
+              // Hydrate current template from returned code files if available
+              const files: Record<string,string> = (payload?.files || {} as any);
+              const current = files[`builder/${template}.json`] || files['builder/home.json'];
+              if (current) {
+                try {
+                  const parsed = JSON.parse(current);
+                  const existing = allData || { home: { blocks: [] }, products: { blocks: [] }, product: { blocks: [] } };
+                  const next = { ...existing } as any;
+                  next[template] = parsed;
+                  const key = `builder:${id}`;
+                  localStorage.setItem(key, JSON.stringify(next, null, 2));
+                  setRaw(JSON.stringify(next));
+                } catch {}
+              }
+            } catch {
+              alert('Failed to load code session');
+            }
+          }} sx={{ mr: 1 }}>Load Code</Button>
+          <Button variant="outlined" onClick={() => { loadDemo(); setTimeout(syncAllToFiles, 0); }} sx={{ mr: 1 }}>Load demo content</Button>
+          <FormControlLabel sx={{ mr: 2 }} control={<Switch checked={serverOnlyPublish} onChange={(e) => setServerOnlyPublish(e.target.checked)} />} label="Server-only" />
+          <Button variant="outlined" color="secondary" disabled={code?.saving} onClick={async () => {
+            // Ensure we have a session id
+            if (!code?.sessionId && id) {
+              dispatch(createNewSession({ sessionId: id as string }));
+            }
+            // Resolve shopId from localStorage or meta fallback
+            const shopId = shopIdState || await resolveShopId();
+            if (!shopId) return alert('Login required to save code');
+            try {
+              // Mirror current builder JSON into code files for all sections
+              syncAllToFiles();
+              await dispatch(saveCodeSession({ shopId })).unwrap();
+              try { console.info('[Builder] Saved code session', { shopId, sessionId: id }); } catch {}
+              // Remember last session id for this shop so storefront can auto-hydrate
+              try { if (shopId) localStorage.setItem(`builder:lastSessionId:${shopId}`, String(id)); } catch {}
+              // Also publish to shop.metadata.builder so public storefront can render without auth
+              try {
+                const files = code?.files || {} as Record<string, string>;
+                const nextBuilder: any = {};
+                const home = files['builder/home.json'] || files['builder\\home.json'];
+                const products = files['builder/products.json'] || files['builder\\products.json'];
+                const product = files['builder/product.json'] || files['builder\\product.json'];
+                if (home) { try { nextBuilder.home = JSON.parse(home); } catch {} }
+                if (products) { try { nextBuilder.products = JSON.parse(products); } catch {} }
+                if (product) { try { nextBuilder.product = JSON.parse(product); } catch {} }
+                // Persist locally for immediate storefront read
+                try { localStorage.setItem(`builder:${shopId}`, JSON.stringify(nextBuilder)); } catch {}
+                const slug = (() => { try { const u = JSON.parse(localStorage.getItem('user')||'{}'); return u?.shop?.slug || u?.slug || ''; } catch { return ''; } })();
+                try { if (slug) localStorage.setItem(`builder:${slug}`, JSON.stringify(nextBuilder)); } catch {}
+                // Push to backend metadata (public)
+                if (Object.keys(nextBuilder).length) {
+                  await dispatch(saveBuilderDesign({ shopId, builder: nextBuilder })).unwrap();
+                  try { console.info('[Builder] Published builder to metadata', { shopId, sections: Object.keys(nextBuilder) }); } catch {}
+                }
+              } catch (e) { try { console.warn('[Builder] Auto-publish metadata failed (non-fatal):', e); } catch {} }
+              alert('Code session saved');
+            } catch (e: any) {
+              const msg = e?.message || (typeof e === 'string' ? e : 'Failed to save code session');
+              console.error('[Builder] Save code session failed:', e);
+              alert(msg);
+            }
+          }} sx={{ mr: 1 }}>{code?.saving ? 'Saving…' : 'Save Code'}</Button>
+          <Button variant="contained" color="primary" onClick={async () => {
+            try {
+              // build payload
+              const builderData = allData || { home: { blocks: [] } };
+              // get seller shop via resolver
+              const shopId = shopIdState || await resolveShopId();
+              const slug = (() => { try { const u = JSON.parse(localStorage.getItem('user')||'{}'); return u?.shop?.slug || u?.slug || ''; } catch { return ''; } })();
+              if (!shopId) { alert('Login required to publish'); return; }
+              // optimistic local persistence for shop pages
+              if (!serverOnlyPublish) {
+                try { if (shopId) localStorage.setItem(`builder:${shopId}`, JSON.stringify(builderData)); } catch {}
+                try { if (slug) localStorage.setItem(`builder:${slug}`, JSON.stringify(builderData)); } catch {}
+              }
+              // backend persistence via Redux thunk
+              if (shopId) {
+                await dispatch(saveBuilderDesign({ shopId, builder: builderData })).unwrap();
+              }
+              alert('Published design to shop. Visit /shop/<slug> to see it.');
+            } catch (e) {
+              alert('Failed to publish. The design is still saved locally for your shop slug.');
+            }
+          }}>Publish to Shop</Button>
           <FormControl size="small" sx={{ mr: 2, minWidth: 150 }}>
             <InputLabel>Template</InputLabel>
             <Select
@@ -244,9 +514,9 @@ export default function BuilderPreviewPage() {
 
       <Box sx={{ display: "flex", flex: 1, minHeight: 0, height: { xs: 'calc(100vh - 56px)', sm: 'calc(100vh - 64px)' }, overflow: 'hidden' }}>
         {/* Sidebar */}
-        <Drawer variant="permanent" open PaperProps={{ sx: { position: "relative", width: 280, overflow: 'hidden', overscrollBehavior: 'none' } }}>
+        <Drawer variant="permanent" open PaperProps={{ sx: { position: "relative", width: 280, height: '100%', overflow: 'hidden', overscrollBehavior: 'none' } }}>
           <Toolbar />
-          <Box sx={{ p: 2, overscrollBehavior: 'none' }} onWheel={(e) => { const el = document.getElementById('canvasScroll'); if (el) { e.preventDefault(); el.scrollBy({ top: e.deltaY }); } }}>
+          <Box sx={{ p: 2, height: { xs: 'calc(100% - 56px)', sm: 'calc(100% - 64px)' }, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>Sections</Typography>
             <List dense>
               {(currentData.home?.blocks || []).map((b: any) => (
@@ -266,6 +536,8 @@ export default function BuilderPreviewPage() {
               <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("Banner", "1")}>Banner (v2)</Button>
               <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("ImageCarousel")}>Image Carousel</Button>
               <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("ProductSlider")}>ProductSlider</Button>
+              <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("BlogGrid")}>Blog Grid</Button>
+              <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("BlogPost")}>Single Blog</Button>
               <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("FeaturedProduct")}>Featured Product</Button>
               <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("FAQ")}>FAQ</Button>
               <Button size="small" variant="outlined" startIcon={<AddIcon />} onClick={() => addSection("Testimonials")}>Testimonials</Button>
@@ -276,7 +548,7 @@ export default function BuilderPreviewPage() {
         </Drawer>
 
         {/* Canvas */}
-        <Box id="canvasScroll" sx={{ flex: 1, p: 3, overflow: "auto", display: 'flex', justifyContent: 'center', overscrollBehavior: 'contain' }}>
+        <Box id="canvasScroll" sx={{ flex: 1, p: 3, overflowY: 'auto', overflowX: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', overscrollBehavior: 'contain' }}>
           <Box sx={{ width: device==='desktop'? 1200 : device==='tablet'? 834 : 390, transition: 'width .2s ease', border: '1px solid #e5e7eb', borderRadius: 1, bgcolor: '#fff' }}>
           {!id && (
             <Typography color="text.secondary">Invalid preview id.</Typography>
@@ -285,14 +557,14 @@ export default function BuilderPreviewPage() {
             <Typography color="text.secondary">No data found in localStorage for key <code>builder:{id}</code>.</Typography>
           )}
           {allData && (
-            <PreviewRenderer data={currentData} editorMode={isEditor} onEditBlock={onEditBlock} onOpenMenu={(blk, anchor) => setMenu({ anchor, blockId: blk.id })} onSelectBlock={(b) => setSelectedId(b.id)} selectedId={selectedId} onOpenProducts={(url) => setProductsDialog({ url })} />
+            <PreviewRenderer data={currentData} device={device} editorMode={isEditor} onEditBlock={onEditBlock} onOpenMenu={(blk, anchor) => setMenu({ anchor, blockId: blk.id })} onSelectBlock={(b) => setSelectedId(b.id)} selectedId={selectedId} onOpenProducts={(url) => setProductsDialog({ url })} />
           )}
           </Box>
         </Box>
 
         {/* Inspector */}
         {isEditor && (
-          <Box sx={{ width: 340, borderLeft: '1px solid #e5e7eb', p: 2, bgcolor: '#fff', overflow: 'hidden', overscrollBehavior: 'none' }} onWheel={(e) => { const el = document.getElementById('canvasScroll'); if (el) { e.preventDefault(); el.scrollBy({ top: e.deltaY }); } }}>
+          <Box sx={{ width: 340, height: '100%', borderLeft: '1px solid #e5e7eb', p: 2, bgcolor: '#fff', overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' }}>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>Inspector</Typography>
             {!selectedBlock && (
               <Typography color="text.secondary" variant="body2">Select a section to edit its content and styles.</Typography>
@@ -311,6 +583,22 @@ export default function BuilderPreviewPage() {
                 {/* Per block fields */}
                 {selectedBlock.type === 'TopBar' && (
                   <TextField size="small" label="Text" value={selectedBlock.props?.text || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, text: e.target.value } }))} />
+                )}
+                {selectedBlock.type === 'Header' && (
+                  <>
+                    <TextField size="small" label="Title" value={selectedBlock.props?.title || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, title: e.target.value } }))} />
+                    <Typography variant="body2">Menu items</Typography>
+                    <Stack spacing={1}>
+                      {Array.isArray(selectedBlock.props?.menu) ? selectedBlock.props.menu.map((m: any, i: number) => (
+                        <Stack key={i} direction="row" spacing={1} alignItems="center">
+                          <TextField size="small" label="Label" value={m.label || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.menu)? [...b.props.menu]:[]; arr[i] = { ...(arr[i]||{}), label: e.target.value }; return { ...b, props: { ...b.props, menu: arr } }; })} />
+                          <TextField size="small" label="Href" value={m.href || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.menu)? [...b.props.menu]:[]; arr[i] = { ...(arr[i]||{}), href: e.target.value }; return { ...b, props: { ...b.props, menu: arr } }; })} />
+                          <Button size="small" onClick={() => updateSelected(b => { const arr = Array.isArray(b.props?.menu)? [...b.props.menu]:[]; arr.splice(i,1); return { ...b, props: { ...b.props, menu: arr } }; })}>Remove</Button>
+                        </Stack>
+                      )) : null}
+                    </Stack>
+                    <Button size="small" onClick={() => updateSelected(b => ({ ...b, props: { ...b.props, menu: [ ...(b.props?.menu || []), { label: '', href: '' } ] } }))}>Add menu item</Button>
+                  </>
                 )}
                 {selectedBlock.type === 'Hero' && (
                   <>
@@ -331,13 +619,43 @@ export default function BuilderPreviewPage() {
                   </>
                 )}
                 {selectedBlock.type === 'Banner' && (
-                  <Stack direction="row" spacing={1}>
-                    <TextField size="small" fullWidth label="Image URL" value={selectedBlock.props?.image || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, image: e.target.value } }))} />
-                    <Button variant="outlined" onClick={() => setMediaOpen({ multi: false, onPick: (urls) => { const [u] = urls; updateSelected(b => ({ ...b, props: { ...b.props, image: u } })); setMediaOpen(false); } })}>Pick</Button>
-                  </Stack>
-                )}
-                {selectedBlock.type === 'Banner' && (
-                  <TextField size="small" label="Link href" value={selectedBlock.props?.href || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, href: e.target.value } }))} />
+                  <>
+                    <Typography variant="body2">Slides ({Array.isArray(selectedBlock.props?.slides) ? selectedBlock.props.slides.length : 0})</Typography>
+                    <Stack spacing={1}>
+                      {(Array.isArray(selectedBlock.props?.slides) ? selectedBlock.props.slides : []).map((s: any, i: number) => (
+                        <Box key={i} sx={{ p: 1, border: '1px solid #e5e7eb', borderRadius: 1 }}>
+                          <Stack spacing={1}>
+                            <Stack direction="row" spacing={1}>
+                              <TextField size="small" fullWidth label="Image URL" value={s.image || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.slides)? [...b.props.slides]:[]; arr[i] = { ...(arr[i]||{}), image: e.target.value }; return { ...b, props: { ...b.props, slides: arr } }; })} />
+                              <Button variant="outlined" onClick={() => setMediaOpen({ multi: false, onPick: (urls) => { const [u] = urls; updateSelected(b => { const arr = Array.isArray(b.props?.slides)? [...b.props.slides]:[]; arr[i] = { ...(arr[i]||{}), image: u }; return { ...b, props: { ...b.props, slides: arr } }; }); setMediaOpen(false); } })}>Pick</Button>
+                              <Button variant="contained" component="label">Upload
+                                <input hidden type="file" accept="image/*" onChange={async (e) => { const files = Array.from(e.target.files || []); const [u] = await uploadFiles(files); if (u) updateSelected(b => { const arr = Array.isArray(b.props?.slides)? [...b.props.slides]:[]; arr[i] = { ...(arr[i]||{}), image: u }; return { ...b, props: { ...b.props, slides: arr } }; }); }} />
+                              </Button>
+                            </Stack>
+                            <TextField size="small" label="Alt" value={s.alt || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.slides)? [...b.props.slides]:[]; arr[i] = { ...(arr[i]||{}), alt: e.target.value }; return { ...b, props: { ...b.props, slides: arr } }; })} />
+                            <TextField size="small" label="Link href" value={s.href || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.slides)? [...b.props.slides]:[]; arr[i] = { ...(arr[i]||{}), href: e.target.value }; return { ...b, props: { ...b.props, slides: arr } }; })} />
+                            <Stack direction="row" spacing={1}>
+                              <TextField size="small" label="Button text" value={s.ctaText || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.slides)? [...b.props.slides]:[]; arr[i] = { ...(arr[i]||{}), ctaText: e.target.value }; return { ...b, props: { ...b.props, slides: arr } }; })} />
+                              <TextField size="small" label="Button href" value={s.ctaHref || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.slides)? [...b.props.slides]:[]; arr[i] = { ...(arr[i]||{}), ctaHref: e.target.value }; return { ...b, props: { ...b.props, slides: arr } }; })} />
+                            </Stack>
+                            <Button size="small" color="error" onClick={() => updateSelected(b => { const arr = Array.isArray(b.props?.slides)? [...b.props.slides]:[]; arr.splice(i,1); return { ...b, props: { ...b.props, slides: arr } }; })}>Remove slide</Button>
+                          </Stack>
+                        </Box>
+                      ))}
+                    </Stack>
+                    <Stack direction="row" spacing={1}>
+                      <Button size="small" variant="outlined" onClick={() => updateSelected(b => ({ ...b, props: { ...b.props, slides: [ ...(b.props?.slides || []), { image: '', href: '', alt: '', ctaText: '', ctaHref: '' } ] } }))}>Add slide</Button>
+                    </Stack>
+                    <Divider sx={{ my: 1 }} />
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <FormControlLabel control={<Switch checked={Boolean(selectedBlock.props?.autoplay)} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, autoplay: e.target.checked } }))} />} label="Autoplay" />
+                      <TextField size="small" type="number" label="Interval (ms)" value={selectedBlock.props?.interval ?? 3000} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, interval: Math.max(1000, Number(e.target.value)) } }))} />
+                    </Stack>
+                    <Stack direction="row" spacing={1}>
+                      <FormControlLabel control={<Switch checked={selectedBlock.props?.showArrows !== false} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, showArrows: e.target.checked } }))} />} label="Show arrows" />
+                      <FormControlLabel control={<Switch checked={Boolean(selectedBlock.props?.showDots)} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, showDots: e.target.checked } }))} />} label="Show dots" />
+                    </Stack>
+                  </>
                 )}
                 {selectedBlock.type === 'FeaturedProduct' && (
                   <>
@@ -347,7 +665,91 @@ export default function BuilderPreviewPage() {
                     <Stack direction="row" spacing={1}>
                       <TextField size="small" fullWidth label="Image URL" value={selectedBlock.props?.image || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, image: e.target.value } }))} />
                       <Button variant="outlined" onClick={() => setMediaOpen({ multi: false, onPick: (urls) => { const [u] = urls; updateSelected(b => ({ ...b, props: { ...b.props, image: u } })); setMediaOpen(false); } })}>Pick</Button>
+                      <Button variant="contained" component="label">Upload
+                        <input hidden type="file" accept="image/*" onChange={async (e) => { const urls = await uploadFiles(Array.from(e.target.files || [])); const [u] = urls; if (u) updateSelected(b => ({ ...b, props: { ...b.props, image: u } })); }} />
+                      </Button>
                     </Stack>
+                  </>
+                )}
+                {selectedBlock.type === 'BlogGrid' && (
+                  <>
+                    <TextField size="small" label="Title" value={selectedBlock.props?.title || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, title: e.target.value } }))} />
+                    <TextField size="small" type="number" label="Columns (1-4)" value={selectedBlock.props?.cols ?? 3} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, cols: Math.max(1, Math.min(4, Number(e.target.value))) } }))} />
+                    <FormControl size="small">
+                      <InputLabel id="bloggrid-layout-label">Layout</InputLabel>
+                      <Select labelId="bloggrid-layout-label" label="Layout" value={selectedBlock.props?.layout || 'grid'} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, layout: e.target.value } }))}>
+                        <MenuItem value="grid">Grid</MenuItem>
+                        <MenuItem value="featured">Featured (1 big + 2 side)</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <Typography variant="body2">Posts ({Array.isArray(selectedBlock.props?.items) ? selectedBlock.props.items.length : 0})</Typography>
+                    <Stack spacing={1}>
+                      {(Array.isArray(selectedBlock.props?.items) ? selectedBlock.props.items : []).map((it: any, i: number) => (
+                        <Box key={i} sx={{ p: 1, border: '1px solid #e5e7eb', borderRadius: 1 }}>
+                          <Stack spacing={1}>
+                            <Stack direction="row" spacing={1}>
+                              <TextField size="small" fullWidth label="Image URL" value={it.image || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), image: e.target.value }; return { ...b, props: { ...b.props, items: arr } }; })} />
+                              <Button variant="outlined" onClick={() => setMediaOpen({ multi: false, onPick: (urls) => { const [u] = urls; updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), image: u }; return { ...b, props: { ...b.props, items: arr } }; }); setMediaOpen(false); } })}>Pick</Button>
+                              <Button variant="contained" component="label">Upload
+                                <input hidden type="file" accept="image/*" onChange={async (e) => { const files = Array.from(e.target.files || []); const [u] = await uploadFiles(files); if (u) updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), image: u }; return { ...b, props: { ...b.props, items: arr } }; }); }} />
+                              </Button>
+                            </Stack>
+                            <TextField size="small" label="Title" value={it.title || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), title: e.target.value }; return { ...b, props: { ...b.props, items: arr } }; })} />
+                            <TextField size="small" multiline minRows={2} label="Excerpt" value={it.excerpt || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), excerpt: e.target.value }; return { ...b, props: { ...b.props, items: arr } }; })} />
+                            <TextField size="small" label="Href" value={it.href || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), href: e.target.value }; return { ...b, props: { ...b.props, items: arr } }; })} />
+                            <TextField size="small" label="Slug (optional)" value={it.slug || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), slug: e.target.value }; return { ...b, props: { ...b.props, items: arr } }; })} helperText="If set, card will link to /blogs/<slug> when Href is empty" />
+                            <Button size="small" color="error" onClick={() => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr.splice(i,1); return { ...b, props: { ...b.props, items: arr } }; })}>Remove post</Button>
+                          </Stack>
+                        </Box>
+                      ))}
+                    </Stack>
+                    <Button size="small" onClick={() => updateSelected(b => ({ ...b, props: { ...b.props, items: [ ...(b.props?.items || []), { image: '', title: '', excerpt: '', href: '' } ] } }))}>Add post</Button>
+                  </>
+                )}
+                {selectedBlock.type === 'BlogPost' && (
+                  <>
+                    <TextField size="small" label="Title" value={selectedBlock.props?.title || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, title: e.target.value } }))} />
+                    <Stack direction="row" spacing={1}>
+                      <TextField size="small" label="Author" value={selectedBlock.props?.author || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, author: e.target.value } }))} />
+                      <TextField size="small" label="Date" value={selectedBlock.props?.date || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, date: e.target.value } }))} />
+                    </Stack>
+                    <Stack direction="row" spacing={1}>
+                      <TextField size="small" fullWidth label="Hero image URL" value={selectedBlock.props?.image || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, image: e.target.value } }))} />
+                      <Button variant="outlined" onClick={() => setMediaOpen({ multi: false, onPick: (urls) => { const [u] = urls; updateSelected(b => ({ ...b, props: { ...b.props, image: u } })); setMediaOpen(false); } })}>Pick</Button>
+                      <Button variant="contained" component="label">Upload
+                        <input hidden type="file" accept="image/*" onChange={async (e) => { const urls = await uploadFiles(Array.from(e.target.files || [])); const [u] = urls; if (u) updateSelected(b => ({ ...b, props: { ...b.props, image: u } })); }} />
+                      </Button>
+                    </Stack>
+                    <TextField size="small" multiline minRows={8} label="HTML" value={selectedBlock.props?.html || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, html: e.target.value } }))} helperText="You can paste rich HTML here. For advanced editing, click 'Open code editor'." />
+                    <Button size="small" onClick={() => router.push(`/seller/builder/${id}/code?template=${template}&block=${selectedId}`)}>Open code editor</Button>
+                  </>
+                )}
+                {selectedBlock.type === 'Testimonials' && (
+                  <>
+                    <TextField size="small" label="Title" value={selectedBlock.props?.title || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, title: e.target.value } }))} />
+                    <Typography variant="body2">Reviews ({Array.isArray(selectedBlock.props?.items) ? selectedBlock.props.items.length : 0})</Typography>
+                    <Stack spacing={1}>
+                      {(Array.isArray(selectedBlock.props?.items) ? selectedBlock.props.items : []).map((it: any, i: number) => (
+                        <Box key={i} sx={{ p: 1, border: '1px solid #e5e7eb', borderRadius: 1 }}>
+                          <Stack spacing={1}>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Avatar src={it.avatar} sx={{ width: 28, height: 28 }} />
+                              <TextField size="small" fullWidth label="Avatar URL" value={it.avatar || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), avatar: e.target.value }; return { ...b, props: { ...b.props, items: arr } }; })} />
+                              <Button variant="outlined" onClick={() => setMediaOpen({ multi: false, onPick: (urls) => { const [u] = urls; updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), avatar: u }; return { ...b, props: { ...b.props, items: arr } }; }); setMediaOpen(false); } })}>Pick</Button>
+                              <Button variant="contained" component="label">Upload
+                                <input hidden type="file" accept="image/*" onChange={async (e) => { const [u] = await uploadFiles(Array.from(e.target.files || [])); if (u) updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), avatar: u }; return { ...b, props: { ...b.props, items: arr } }; }); }} />
+                              </Button>
+                            </Stack>
+                            <Stack direction="row" spacing={1}>
+                              <TextField size="small" label="Name" value={it.name || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), name: e.target.value }; return { ...b, props: { ...b.props, items: arr } }; })} />
+                              <TextField size="small" fullWidth label="Review" value={it.text || ''} onChange={(e) => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr[i] = { ...(arr[i]||{}), text: e.target.value }; return { ...b, props: { ...b.props, items: arr } }; })} />
+                            </Stack>
+                            <Button size="small" color="error" onClick={() => updateSelected(b => { const arr = Array.isArray(b.props?.items)? [...b.props.items]:[]; arr.splice(i,1); return { ...b, props: { ...b.props, items: arr } }; })}>Remove review</Button>
+                          </Stack>
+                        </Box>
+                      ))}
+                    </Stack>
+                    <Button size="small" onClick={() => updateSelected(b => ({ ...b, props: { ...b.props, items: [ ...(b.props?.items || []), { avatar: '', name: '', text: '' } ] } }))}>Add review</Button>
                   </>
                 )}
                 {selectedBlock.type === 'ImageCarousel' && (
@@ -368,6 +770,15 @@ export default function BuilderPreviewPage() {
                         <input hidden multiple type="file" accept="image/*" onChange={async (e) => { const files = Array.from(e.target.files || []); const urls = await uploadFiles(files); updateSelected(b => ({ ...b, props: { ...b.props, images: [ ...(b.props?.images || []), ...urls ] } })); }} />
                       </Button>
                     </Stack>
+                    <Divider sx={{ my: 1 }} />
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <FormControlLabel control={<Switch checked={Boolean(selectedBlock.props?.autoplay)} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, autoplay: e.target.checked } }))} />} label="Autoplay" />
+                      <TextField size="small" type="number" label="Interval (ms)" value={selectedBlock.props?.interval ?? 3000} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, interval: Math.max(1000, Number(e.target.value)) } }))} />
+                    </Stack>
+                    <Stack direction="row" spacing={1}>
+                      <FormControlLabel control={<Switch checked={selectedBlock.props?.showArrows !== false} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, showArrows: e.target.checked } }))} />} label="Show arrows" />
+                      <FormControlLabel control={<Switch checked={Boolean(selectedBlock.props?.showDots)} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, showDots: e.target.checked } }))} />} label="Show dots" />
+                    </Stack>
                   </>
                 )}
                 {selectedBlock.type === 'RichText' && (
@@ -378,9 +789,19 @@ export default function BuilderPreviewPage() {
                     <TextField size="small" label="Title" value={selectedBlock.props?.title || ''} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, title: e.target.value } }))} />
                     <TextField size="small" type="number" label="Products to show" value={selectedBlock.props?.limit ?? 8} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, limit: Math.max(1, Number(e.target.value)) } }))} />
                     <Stack direction="row" spacing={1}>
-                      <Button size="small" variant="outlined" onClick={() => setProductsDialog({ url: `/seller/products` })}>Open products</Button>
+                      <Button size="small" variant="outlined" onClick={() => { setProductTempSelected(Array.isArray(selectedBlock.props?.productIds) ? [...selectedBlock.props.productIds] : []); setProductsDialog({ mode: 'picker' }); }}>Open products</Button>
                       <Button size="small" variant="contained" onClick={() => setProductsDialog({ url: `/seller/products/new` })}>Create product</Button>
                     </Stack>
+                    <Divider sx={{ my: 1 }} />
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <FormControlLabel control={<Switch checked={Boolean(selectedBlock.props?.autoplay)} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, autoplay: e.target.checked } }))} />} label="Autoplay" />
+                      <TextField size="small" type="number" label="Interval (ms)" value={selectedBlock.props?.interval ?? 3000} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, interval: Math.max(1000, Number(e.target.value)) } }))} />
+                    </Stack>
+                    <Stack direction="row" spacing={1}>
+                      <FormControlLabel control={<Switch checked={selectedBlock.props?.showArrows !== false} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, showArrows: e.target.checked } }))} />} label="Show arrows" />
+                      <FormControlLabel control={<Switch checked={Boolean(selectedBlock.props?.showDots)} onChange={(e) => updateSelected(b => ({ ...b, props: { ...b.props, showDots: e.target.checked } }))} />} label="Show dots" />
+                    </Stack>
+                    <TextField size="small" multiline minRows={3} label="Product IDs (one per line)" value={(Array.isArray(selectedBlock.props?.productIds) ? selectedBlock.props.productIds : []).join("\n")} onChange={(e) => { const ids = e.target.value.split(/\r?\n/).map(s => s.trim()).filter(Boolean); updateSelected(b => ({ ...b, props: { ...b.props, productIds: ids } })); }} helperText="Optional: specify exact product IDs to show. Leave empty to show placeholders." />
                   </>
                 )}
                 {selectedBlock.type === 'Footer' && (
@@ -427,11 +848,43 @@ export default function BuilderPreviewPage() {
     </Box>
 
     {/* Media Picker */}
-    <Dialog open={!!mediaOpen} onClose={() => setMediaOpen(false)} maxWidth="sm" fullWidth>
+    <Dialog open={!!mediaOpen} onClose={() => setMediaOpen(false)} maxWidth="md" fullWidth>
       <DialogTitle>Select media {mediaOpen && mediaOpen.multi ? '(multiple allowed)' : ''}</DialogTitle>
-      <DialogContent>
-        <Typography variant="body2" sx={{ mb: 1 }}>Paste one or more image URLs (one per line), or upload files.</Typography>
-        <TextField value={mediaUrlsInput} onChange={(e) => setMediaUrlsInput(e.target.value)} multiline minRows={4} fullWidth placeholder="https://...\nhttps://..." sx={{ mb: 2 }} />
+      <DialogContent sx={{ display: 'grid', gap: 2 }}>
+        <Typography variant="body2">My uploads</Typography>
+        <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 1, p: 1, maxHeight: '40vh', overflow: 'auto' }}>
+          {mediaLoading ? (
+            <Box sx={{ p: 2, display: 'flex', justifyContent: 'center' }}><CircularProgress size={20} /></Box>
+          ) : (
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(5, 1fr)' }, gap: 1 }}>
+              {mediaGallery.map((u) => (
+                <Box key={u} sx={{ position: 'relative', cursor: 'pointer', borderRadius: 1, overflow: 'hidden', border: '1px solid #e5e7eb' }} onClick={() => { mediaOpen && mediaOpen.onPick([u]); setMediaOpen(false); }}>
+                  <img src={u} alt="upload" style={{ width: '100%', height: 80, objectFit: 'cover' }} />
+                </Box>
+              ))}
+              {mediaGallery.length === 0 && (
+                <Typography variant="body2" color="text.secondary" sx={{ p: 1 }}>No uploads yet.</Typography>
+              )}
+            </Box>
+          )}
+        </Box>
+        <Divider />
+        <Typography variant="body2">Paste URLs or upload files</Typography>
+        <TextField value={mediaUrlsInput} onChange={(e) => setMediaUrlsInput(e.target.value)} multiline minRows={4} fullWidth placeholder="https://...\nhttps://..." />
+        {/* Previews for pasted/added URLs */}
+        <Box sx={{ mt: 1 }}>
+          <Typography variant="body2" sx={{ mb: 0.5 }}>Preview</Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(5, 1fr)' }, gap: 1 }}>
+            {mediaUrlsInput.split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(u => (
+              <Box key={u} sx={{ border: '1px solid #e5e7eb', borderRadius: 1, overflow: 'hidden' }}>
+                <img src={u} alt="preview" style={{ width: '100%', height: 80, objectFit: 'cover' }} />
+              </Box>
+            ))}
+            {mediaUrlsInput.trim() === '' && (
+              <Typography variant="caption" color="text.secondary">No URLs added yet.</Typography>
+            )}
+          </Box>
+        </Box>
         <Button variant="contained" component="label">Upload images
           <input hidden multiple type="file" accept="image/*" onChange={async (e) => { const urls = await uploadFiles(Array.from(e.target.files || [])); setMediaUrlsInput(prev => (prev ? prev + "\n" : "") + urls.join("\n")); }} />
         </Button>
@@ -439,6 +892,61 @@ export default function BuilderPreviewPage() {
       <DialogActions>
         <Button onClick={() => setMediaOpen(false)}>Cancel</Button>
         <Button variant="contained" onClick={() => { const urls = mediaUrlsInput.split(/\r?\n/).map(s => s.trim()).filter(Boolean); mediaOpen && mediaOpen.onPick(urls); setMediaUrlsInput(""); setMediaOpen(false); }}>Use selected</Button>
+      </DialogActions>
+    </Dialog>
+
+    {/* Products Picker */}
+    <Dialog open={!!productsDialog} onClose={() => setProductsDialog(null)} maxWidth="md" fullWidth>
+      <DialogTitle>Select products</DialogTitle>
+      <DialogContent sx={{ display: 'grid', gap: 2 }}>
+        {productsDialog?.mode === 'picker' ? (
+          <>
+            <TextField size="small" label="Search" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Search products" />
+            <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 1, maxHeight: '50vh', overflow: 'auto' }}>
+              {productLoading ? (
+                <Box sx={{ p: 2, display: 'flex', justifyContent: 'center' }}><CircularProgress size={20} /></Box>
+              ) : (
+                <List dense>
+                  {productResults.map((p: any) => {
+                    const id = p._id || p.id;
+                    const checked = productTempSelected.includes(id);
+                    return (
+                      <ListItemButton key={id} onClick={() => setProductTempSelected(prev => checked ? prev.filter(x => x !== id) : [...prev, id])}>
+                        <Checkbox edge="start" tabIndex={-1} disableRipple checked={checked} sx={{ mr: 1 }} />
+                        <Box sx={{ width: 40, height: 32, mr: 1, borderRadius: 1, overflow: 'hidden', bgcolor: '#f3f4f6', display: 'grid', placeItems: 'center' }}>
+                          <img src={p.mainImage || (Array.isArray(p.images) ? p.images[0] : '') || '/product-placeholder.png'} alt="thumb" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </Box>
+                        <ListItemText primary={p.title} secondary={`₹${Number(p.price ?? 0).toLocaleString()}`} />
+                      </ListItemButton>
+                    );
+                  })}
+                  {productResults.length === 0 && (
+                    <Box sx={{ p: 2 }}><Typography variant="body2" color="text.secondary">No products found.</Typography></Box>
+                  )}
+                </List>
+              )}
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Button disabled={productPage <= 1} onClick={() => setProductPage(p => Math.max(1, p - 1))}>Prev</Button>
+              <Typography variant="caption">Page {productPage}</Typography>
+              <Button disabled={!productHasMore} onClick={() => setProductPage(p => p + 1)}>Next</Button>
+            </Box>
+          </>
+        ) : productsDialog?.url ? (
+          <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 1, overflow: 'hidden', height: '50vh' }}>
+            <iframe src={productsDialog.url} style={{ width: '100%', height: '100%', border: 'none' }} />
+          </Box>
+        ) : null}
+      </DialogContent>
+      <DialogActions>
+        {productsDialog?.mode === 'picker' ? (
+          <>
+            <Button onClick={() => setProductsDialog(null)}>Cancel</Button>
+            <Button variant="contained" onClick={() => { updateSelected(b => ({ ...b, props: { ...b.props, productIds: productTempSelected } })); setProductsDialog(null); }}>Use selected ({productTempSelected.length})</Button>
+          </>
+        ) : (
+          <Button onClick={() => setProductsDialog(null)}>Done</Button>
+        )}
       </DialogActions>
     </Dialog>
     </>

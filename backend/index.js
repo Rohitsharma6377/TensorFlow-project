@@ -78,7 +78,8 @@ app.use('/api/v1/payments/stripe/webhook', express.raw({ type: 'application/json
 app.use('/api/v1/payments/razorpay/webhook', express.raw({ type: 'application/json' }));
 // Security & parsing
 app.use(helmet());
-app.use(express.json({ limit: '2mb' }));
+// Increase JSON body size to accommodate large builder designs
+app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(morgan('dev'));

@@ -55,6 +55,8 @@ export async function api<T = any>(
     ...(options.headers as Record<string, string>),
   };
 
+// (removed duplicate early ShopsAdminAPI block)
+
   // Add auth header if not skipped
   if (!options.skipAuth) {
     const token = getAuthToken();
@@ -290,6 +292,31 @@ export const AuthAPI = {
       body: JSON.stringify({ refreshToken }),
       skipAuth: true,
     });
+  },
+  async getBuilder(shopId: string) {
+    return api<{ success: boolean; builder: any }>(`/api/v1/shops/${encodeURIComponent(shopId)}/builder`, { method: 'GET' })
+  },
+  async updateMetadata(shopId: string, meta: any) {
+    return api<{ success: boolean; shop: any }>(`/api/v1/shops/${encodeURIComponent(shopId)}/metadata`, { method: 'PUT', body: JSON.stringify(meta) })
+  },
+  async upsertPage(shopId: string, page: { handle: string; title?: string; content?: string; visibility?: 'public'|'hidden' }) {
+    const current = await api<{ success: boolean; shop: any }>(`/api/v1/shops/${encodeURIComponent(shopId)}`, { method: 'GET' })
+    const meta = current?.shop?.metadata || {}
+    const pages: any[] = Array.isArray(meta.pages) ? meta.pages : []
+    const idx = pages.findIndex((p) => String(p.handle) === String(page.handle))
+    if (idx >= 0) pages[idx] = { ...pages[idx], ...page, updatedAt: new Date().toISOString() }
+    else pages.push({ ...page, visibility: page.visibility || 'public', updatedAt: new Date().toISOString() })
+    meta.pages = pages
+    return api<{ success: boolean; shop: any }>(`/api/v1/shops/${encodeURIComponent(shopId)}/metadata`, { method: 'PUT', body: JSON.stringify(meta) })
+  },
+  async saveCode(shopId: string, sessionId: string, code: { files: Record<string, string>; meta?: any }) {
+    return api<{ success: boolean; code: any }>(`/api/v1/shops/${encodeURIComponent(shopId)}/code/${encodeURIComponent(sessionId)}`, {
+      method: 'PUT',
+      body: JSON.stringify(code),
+    })
+  },
+  async getCode(shopId: string, sessionId: string) {
+    return api<{ success: boolean; code: any }>(`/api/v1/shops/${encodeURIComponent(shopId)}/code/${encodeURIComponent(sessionId)}`, { method: 'GET' })
   },
 };
 
@@ -836,6 +863,43 @@ export const OrdersAnalyticsAPI = {
       `/api/v1/orders/seller/series?shop=${encodeURIComponent(shop)}&windowHours=${windowHours}&intervalMinutes=${intervalMinutes}`,
       { method: 'GET' }
     );
+  },
+};
+
+// Shops Admin API (builder/theme persistence)
+export const ShopsAdminAPI = {
+  async getCode(shopId: string, sessionId: string) {
+    return api<{ success: boolean; code: any }>(
+      `/api/v1/shops/${encodeURIComponent(shopId)}/code/${encodeURIComponent(sessionId)}`,
+      { method: 'GET' }
+    )
+  },
+  async saveCode(shopId: string, sessionId: string, code: { files: Record<string, string>; meta?: any }) {
+    return api<{ success: boolean; code: any }>(
+      `/api/v1/shops/${encodeURIComponent(shopId)}/code/${encodeURIComponent(sessionId)}`,
+      { method: 'PUT', body: JSON.stringify(code) }
+    )
+  },
+  async saveBuilder(shopId: string, builder: any) {
+    const body = { builder } as any;
+    // Try a few common backend routes in order
+    // 1) Dedicated builder endpoint
+    try {
+      return await api<any>(`/api/v1/shops/${shopId}/builder`, { method: 'PUT', body: JSON.stringify(body) });
+    } catch (e) {}
+    // 2) Metadata endpoint
+    try {
+      return await api<any>(`/api/v1/shops/${shopId}/metadata`, { method: 'PUT', body: JSON.stringify({ builder }) });
+    } catch (e) {}
+    // 3) Patch shop with metadata
+    try {
+      return await api<any>(`/api/v1/shops/${shopId}`, { method: 'PATCH', body: JSON.stringify({ metadata: { builder } }) });
+    } catch (e) {}
+    // 4) Put shop with metadata (least preferred; backend may reject partial)
+    try {
+      return await api<any>(`/api/v1/shops/${shopId}`, { method: 'PUT', body: JSON.stringify({ metadata: { builder } }) });
+    } catch (e) {}
+    throw new Error('Failed to persist builder to backend (no compatible endpoint)');
   },
 };
 
