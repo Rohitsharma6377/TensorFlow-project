@@ -10,7 +10,7 @@ import FavoriteBorderRounded from '@mui/icons-material/FavoriteBorderRounded'
 import FavoriteRounded from '@mui/icons-material/FavoriteRounded'
 import ShoppingCartRounded from '@mui/icons-material/ShoppingCartRounded'
 import BoltRounded from '@mui/icons-material/BoltRounded'
-import { ShopsAPI, SocialAPI } from '@/lib/api'
+import { ShopsAPI, SocialAPI, SearchAPI } from '@/lib/api'
 import Link from 'next/link'
 
 type Variant = {
@@ -37,6 +37,14 @@ export default function ProductPage({ params }: { params: { id: string } }) {
   const [shopCard, setShopCard] = useState<{ _id: string; name: string; slug: string; logo?: { url?: string }; owner: string } | null>(null)
   const [inWishlist, setInWishlist] = useState(false)
   const [isFollowing, setIsFollowing] = useState<boolean | null>(null)
+  const [related, setRelated] = useState<any[]>([])
+  const [loadingRelated, setLoadingRelated] = useState(false)
+  const sliderRef = useRef<HTMLDivElement | null>(null)
+  const scrollByAmount = 320
+  const scrollLeft = () => { try { sliderRef.current?.scrollBy({ left: -scrollByAmount, behavior: 'smooth' }) } catch {}
+  }
+  const scrollRight = () => { try { sliderRef.current?.scrollBy({ left: scrollByAmount, behavior: 'smooth' }) } catch {}
+  }
 
   useEffect(() => {
     dispatch(fetchProduct(params.id))
@@ -59,6 +67,25 @@ export default function ProductPage({ params }: { params: { id: string } }) {
       } catch {}
     })()
   }, [current])
+
+  // Load more products from the same shop
+  useEffect(() => {
+    (async () => {
+      try {
+        const sid = (current as any)?.shopId
+        if (!sid) return
+        setLoadingRelated(true)
+        const res = await SearchAPI.products({ shopId: String(sid), limit: 12 })
+        const items = (res as any)?.products || []
+        const filtered = items.filter((p: any) => String(p._id) !== String(current?._id))
+        setRelated(filtered)
+      } catch {
+        setRelated([])
+      } finally {
+        setLoadingRelated(false)
+      }
+    })()
+  }, [current?._id])
 
   // Reflect wishlist state from Redux when switching products
   useEffect(() => {
@@ -172,9 +199,10 @@ export default function ProductPage({ params }: { params: { id: string } }) {
       // Prefill message payload stored so Chat page can auto-send once
       const prefill = {
         productId: current._id,
-        text: `Hi! I'm interested in this product: /products/${current._id}`,
-        image: (current.mainImage || (Array.isArray(current.images) && current.images[0])) || undefined,
-      }
+        // Use the canonical route used by this app for single product pages
+        text: `Hi! I'm interested in this product: /shops/shop/products/${current._id}`,
+        // Do not attach image; chat will render a product card from the link
+      } as any
       if (typeof window !== 'undefined') {
         localStorage.setItem('chatPrefill', JSON.stringify(prefill))
       }
@@ -184,10 +212,10 @@ export default function ProductPage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {status === 'loading' && <p className="text-slate-500">Loading...</p>}
       {current && (
-        <div className="px-2.5 grid gap-8 lg:grid-cols-2">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 grid gap-8 lg:grid-cols-2">
           {/* Gallery */}
           <div className="space-y-3">
             <div
@@ -217,8 +245,13 @@ export default function ProductPage({ params }: { params: { id: string } }) {
           </div>
 
           {/* Details */}
-          <div className="space-y-5">
-            <h1 className="text-3xl font-bold">{current.title}</h1>
+          <div className="space-y-5 lg:sticky lg:top-20 self-start">
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-2xl sm:text-3xl font-bold">{current.title}</h1>
+              {shopCard?.slug && (
+                <Link href={`/shop/${shopCard.slug}`} className="text-sm text-emerald-700 hover:underline whitespace-nowrap">Back to shop</Link>
+              )}
+            </div>
             {current.description && <div className="prose dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: current.description }} />}
 
             {/* Variant selector */}
@@ -300,7 +333,52 @@ export default function ProductPage({ params }: { params: { id: string } }) {
         </div>
       )}
 
-      {/* Removed sticky mobile action bar to avoid duplicate Add/Chat/Buy buttons */}
+      {/* More from this shop */}
+      {shopCard && (
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg sm:text-xl font-semibold">More from {shopCard.name}</h2>
+            <Link href={`/shop/${shopCard.slug}`} className="text-sm text-emerald-700 hover:underline">View all</Link>
+          </div>
+          {loadingRelated && <div className="text-slate-500 text-sm">Loading more products…</div>}
+          {!loadingRelated && (
+            <div className="relative">
+              {/* Controls */}
+              <button onClick={scrollLeft} aria-label="Previous" className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 h-9 w-9 items-center justify-center rounded-full border bg-white/90 shadow hover:bg-white">
+                ‹
+              </button>
+              <button onClick={scrollRight} aria-label="Next" className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 h-9 w-9 items-center justify-center rounded-full border bg-white/90 shadow hover:bg-white">
+                ›
+              </button>
+              {/* Track */}
+              <div ref={sliderRef} className="flex gap-3 sm:gap-4 overflow-x-auto scroll-smooth pr-2">
+                {related.map((p:any) => (
+                  <Link
+                    key={p._id}
+                    href={`/shops/shop/products/${p._id}`}
+                    className="group border rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow min-w-[160px] sm:min-w-[200px] md:min-w-[220px]"
+                  >
+                    <div className="aspect-square bg-slate-50">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={p.mainImage || (p.images?.[0]) || '/product-placeholder.png'} alt={p.title} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="p-2">
+                      <div className="text-xs sm:text-sm font-medium line-clamp-2">{p.title}</div>
+                      {typeof p.price === 'number' && (
+                        <div className="text-emerald-700 font-semibold mt-1 text-sm">₹{Number(p.price).toLocaleString()}</div>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+                {related.length === 0 && !loadingRelated && (
+                  <div className="text-sm text-slate-500">No other products yet.</div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   )
 }

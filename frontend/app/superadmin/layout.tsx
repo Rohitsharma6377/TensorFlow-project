@@ -8,7 +8,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
   return (
     <ProtectedRoute requiredRole="superadmin" allowGuest={false}>
       <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-sky-50 via-emerald-50 to-emerald-100/40">
-        <div className="container mx-auto px-4 py-6">
+        <div className="mx-auto px-4 py-6">
           <div className="flex gap-6">
             <SuperSidebar />
             <main className="flex-1 min-w-0 animate-[fadeIn_300ms_ease]">

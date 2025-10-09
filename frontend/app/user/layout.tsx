@@ -11,7 +11,7 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
   return (
     <ProtectedRoute requiredRole="customer" allowGuest={false}>
       <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-sky-50 via-emerald-50 to-emerald-100/40">
-        <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
+        <div className="mx-auto px-2 sm:px-4 py-4 sm:py-6">
           {/* Top bar for mobile */}
           <div className="mb-3 flex items-center justify-between md:hidden">
             <div className="font-semibold text-emerald-800">Dashboard</div>

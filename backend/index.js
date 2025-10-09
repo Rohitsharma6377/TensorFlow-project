@@ -127,6 +127,7 @@ app.use('/api/v1/tags', tagsRouter);
 app.use('/api/v1/taxes', taxesRouter);
 app.use('/api/v1/coupons', couponsRouter);
 app.use('/api/v1/notifications', notificationsRouter);
+app.use('/api/v1/web3', web3Router);
 app.use('/api/v1/dev', devRouter);
 app.use('/api/v1/domains', domainsRouter);
 

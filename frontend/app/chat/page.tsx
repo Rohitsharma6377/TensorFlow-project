@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChatAPI, ShopsAPI, SocialAPI } from "@/lib/api";
+import { ChatAPI, ShopsAPI, SocialAPI, ProductAPI } from "@/lib/api";
 import { getSocket, connectSocket, joinConversationRoom, leaveConversationRoom } from "@/lib/socket";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,10 +41,45 @@ export default function ChatPage() {
   const [showChats, setShowChats] = useState(false); // mobile drawer for chat list
   const [currentShopSlug, setCurrentShopSlug] = useState<string | null>(null);
   const [currentShopId, setCurrentShopId] = useState<string | null>(null);
+  const [currentShopName, setCurrentShopName] = useState<string | null>(null);
+  const [currentShopLogo, setCurrentShopLogo] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false); // right profile drawer
   const [chatSearch, setChatSearch] = useState("");
   const [chattedOnly, setChattedOnly] = useState(true);
   const [currentShopPhone, setCurrentShopPhone] = useState<string | null>(null);
+
+  // Inline component to render a product preview card when a link is detected
+  function ProductPreviewCard({ productId }: { productId: string }) {
+    const [p, setP] = useState<any | null>(null);
+    useEffect(() => {
+      let mounted = true;
+      (async () => {
+        try {
+          const r = await ProductAPI.get(productId);
+          if (!mounted) return;
+          setP(r?.product || null);
+        } catch { setP(null); }
+      })();
+      return () => { mounted = false; };
+    }, [productId]);
+    if (!p) return null;
+    const href = `/shops/shop/products/${p._id}`;
+    const img = p.mainImage || (Array.isArray(p.images) && p.images[0]) || '/product-placeholder.png';
+    return (
+      <Link href={href} className="mt-2 inline-block border rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow w-[220px] text-left">
+        <div className="aspect-square bg-slate-50">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={img} alt={p.title} className="w-full h-full object-cover" />
+        </div>
+        <div className="p-2">
+          <div className="text-sm font-medium line-clamp-2">{p.title}</div>
+          {typeof p.price === 'number' && (
+            <div className="text-emerald-700 font-semibold mt-1">₹{Number(p.price).toLocaleString()}</div>
+          )}
+        </div>
+      </Link>
+    );
+  }
 
   const isAuthed = useMemo(() => {
     if (typeof window === "undefined") return false;
@@ -126,19 +161,23 @@ export default function ChatPage() {
               const one = (b.shops || [])[0];
               if (one?.slug) setCurrentShopSlug(one.slug);
               if (one?._id) setCurrentShopId(one._id);
+              if (one?.name) setCurrentShopName(one.name);
+              if (one?.logo?.url) setCurrentShopLogo(one.logo.url);
             } catch {}
           } else {
             setCurrentShopSlug(shop);
             // Try to resolve id from following list cache
             const found = (Array.isArray(followedShops) ? followedShops : []).find((x:any)=>x.slug===shop);
             if (found?._id) setCurrentShopId(found._id);
+            if (found?.name) setCurrentShopName(found.name);
+            if (found?.logo?.url) setCurrentShopLogo(found.logo.url);
           }
         }
       } catch {}
     })();
   }, [isAuthed]);
 
-  // When we know the slug, fetch shop details to retrieve a callable phone
+  // When we know the slug, fetch shop details to retrieve name/logo/phone
   useEffect(() => {
     (async () => {
       try {
@@ -146,6 +185,18 @@ export default function ChatPage() {
           const res: any = await ShopsAPI.getBySlug(currentShopSlug);
           const phone = res?.shop?.contact?.phone || res?.shop?.contactPhone || null;
           setCurrentShopPhone(phone || null);
+          if (res?.shop?.name) setCurrentShopName(res.shop.name);
+          // Best-effort resolve logo via bulk using id, as some backends omit logo in getBySlug
+          if (res?.shop?._id) {
+            try {
+              const b = await ShopsAPI.bulk([String(res.shop._id)]);
+              const one = (b?.shops || [])[0];
+              if (one?.logo?.url) setCurrentShopLogo(one.logo.url);
+              if (!currentShopName && one?.name) setCurrentShopName(one.name);
+            } catch {}
+          } else if (res?.shop?.logo?.url) {
+            setCurrentShopLogo(res.shop.logo.url);
+          }
         }
       } catch {
         setCurrentShopPhone(null);
@@ -452,18 +503,18 @@ export default function ChatPage() {
 
       {/* Chat main (compact, aligned right) */}
       <div className="rounded-lg border bg-white flex flex-col relative min-h-0 h-full overflow-hidden">
-        <div className="px-3 sm:px-4 py-2 border-b flex items-center justify-between sticky top-0 bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60 z-10">
+        <div className="px-2 sm:px-4 py-2 border-b flex items-center justify-between sticky top-0 bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60 z-10">
           <div className="flex items-center gap-3 min-w-0">
             <button className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-md border hover:bg-slate-50 transition-transform duration-200 hover:scale-110 active:scale-95" onClick={() => setShowChats(true)} aria-label="Open chat list"><MenuRounded fontSize="small" /></button>
             <div className="h-9 w-9 rounded-full bg-sky-100 flex items-center justify-center overflow-hidden cursor-pointer" onClick={() => setShowProfile(true)} title="View profile">
-              {(() => {
-                const s = followedShops.find(x => x.slug === (currentShopSlug || shop || ''));
-                if (s?.logo?.url) return (<img src={s.logo.url} alt="avatar" className="h-full w-full object-cover" />);
-                return (<span className="text-sky-700 text-sm">{(s?.name?.[0] || 'C').toUpperCase()}</span>);
-              })()}
+              {currentShopLogo ? (
+                <img src={currentShopLogo} alt="avatar" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-sky-700 text-sm">{(currentShopName?.[0] || 'C').toUpperCase()}</span>
+              )}
             </div>
             <div className="min-w-0">
-              <div className="font-semibold truncate">{followedShops.find(x=>x.slug===(currentShopSlug||shop||''))?.name || 'Conversation'}</div>
+              <div className="font-semibold truncate">{currentShopName || 'Conversation'}</div>
               <div className="text-xs text-emerald-600">Online</div>
             </div>
           </div>
@@ -491,7 +542,7 @@ export default function ChatPage() {
               "linear-gradient(to bottom right, rgba(16,185,129,0.08), rgba(255,255,255,0.08), rgba(56,189,248,0.08)), url('https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=1800&q=60')",
           }}
         >
-          <div className="mx-auto w-full max-w-2xl">
+          <div className="w-full px-1">
           {messages.length === 0 && (
             <div className="text-sm text-slate-500">No messages yet. Say hello!</div>
           )}
@@ -500,18 +551,26 @@ export default function ChatPage() {
             const bubble = mine
               ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-sm'
               : 'bg-white border shadow-sm';
+            // Detect product link either legacy /products/:id or current /shops/shop/products/:id
+            const txt: string = m.text || '';
+            const match = txt.match(/\/(?:shops\/shop\/products|products)\/([a-z0-9]{24})/i);
+            const productId = match ? match[1] : null;
+            const cleanedText = productId ? txt.replace(/\s*\/(?:shops\/shop\/products|products)\/[a-z0-9]{24}/i, '').trim() : txt;
             return (
               <div key={m._id || m.tempId || Math.random()} className={`mb-3 flex ${mine ? 'justify-end' : 'justify-start'} items-end gap-2`}>
                 {!mine && (
                   <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 text-xs select-none">S</div>
                 )}
-                <div className={`${mine ? 'items-end text-right' : 'items-start text-left'} flex flex-col max-w-[80%] sm:max-w-[70%]`}>
+                <div className={`${mine ? 'items-end text-right' : 'items-start text-left'} flex flex-col max-w-[98%] sm:max-w-[92%]`}>
                   <div className="text-[11px] text-slate-500 mb-1">{new Date(m.createdAt || Date.now()).toLocaleString()}</div>
-                  {m.text && (
+                  {cleanedText && (
                     <div className={`px-3 py-2 rounded-2xl inline-block mt-1 ${bubble} ${m.pending ? 'opacity-80' : ''}`}>
-                      {m.text}
+                      {cleanedText}
                       {m.failed && <span className="ml-2 text-[10px] opacity-80">• failed</span>}
                     </div>
+                  )}
+                  {productId && (
+                    <ProductPreviewCard productId={productId} />
                   )}
                   {Array.isArray(m.attachments) && m.attachments.map((a: string, idx: number) => (
                     a.match(/\.(png|jpe?g|gif|webp|svg)$/i) ? (
@@ -614,14 +673,19 @@ export default function ChatPage() {
               <div className="flex items-center gap-3">
                 <div className="h-16 w-16 rounded-full bg-sky-100 overflow-hidden flex items-center justify-center">
                   {(() => {
-                    const s = followedShops.find(x => x.slug === (currentShopSlug || shop || ''));
-                    if (s?.logo?.url) return (<img src={s.logo.url} alt="avatar" className="h-full w-full object-cover" />);
-                    return (<span className="text-sky-700 text-lg">{(s?.name?.[0] || 'C').toUpperCase()}</span>);
+                    const logo = currentShopLogo || followedShops.find(x => x.slug === (currentShopSlug || shop || ''))?.logo?.url;
+                    if (logo) return (<img src={logo} alt="avatar" className="h-full w-full object-cover" />);
+                    const nm = currentShopName || followedShops.find(x => x.slug === (currentShopSlug || shop || ''))?.name || 'C';
+                    return (<span className="text-sky-700 text-lg">{(nm[0] || 'C').toUpperCase()}</span>);
                   })()}
                 </div>
                 <div>
-                  <div className="font-semibold">{followedShops.find(x=>x.slug===(currentShopSlug||shop||''))?.name || 'Conversation'}</div>
-                  <div className="text-xs text-slate-500">@{currentShopSlug || shop || 'shop'}</div>
+                  <div className="font-semibold">{currentShopName || followedShops.find(x=>x.slug===(currentShopSlug||shop||''))?.name || 'Conversation'}</div>
+                  {(() => {
+                    const s = currentShopSlug || shop || '';
+                    const looksId = /^[a-f0-9]{24}$/i.test(s);
+                    return !looksId ? (<div className="text-xs text-slate-500">@{s}</div>) : null;
+                  })()}
                 </div>
               </div>
               {(currentShopSlug || shop) && (

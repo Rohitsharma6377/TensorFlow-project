@@ -22,6 +22,11 @@ import chatReducer from './slice/chatSlice'
 import notificationsReducer from './slice/notificationSlice'
 import adminUsersReducer from './slice/adminUsersSlice'
 import payoutAdminReducer from './slice/payoutAdminSlice'
+import adminShopsReducer from './slice/adminShopsSlice'
+import adminContactsReducer from './slice/adminContactsSlice'
+import adminOrdersReducer from './slice/adminOrdersSlice'
+import adminSellersReducer from './slice/adminSellersSlice'
+import deliveryPartnersReducer from './slice/deliveryPartnersSlice'
 import premiumMemberReducer from './slice/premiumMemberSlice'
 import builderReducer from './slice/builderSlice'
 import codeStudioReducer from './slice/codeStudioSlice'
@@ -50,6 +55,11 @@ export const store = configureStore({
     explore: exploreReducer,
     adminUsers: adminUsersReducer,
     payouts: payoutAdminReducer,
+    adminShops: adminShopsReducer,
+    adminContacts: adminContactsReducer,
+    adminOrders: adminOrdersReducer,
+    adminSellers: adminSellersReducer,
+    deliveryPartners: deliveryPartnersReducer,
     premiumMembers: premiumMemberReducer,
     builder: builderReducer,
     codeStudio: codeStudioReducer,

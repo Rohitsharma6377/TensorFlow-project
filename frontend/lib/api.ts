@@ -55,7 +55,6 @@ export async function api<T = any>(
     ...(options.headers as Record<string, string>),
   };
 
-// (removed duplicate early ShopsAdminAPI block)
 
   // Add auth header if not skipped
   if (!options.skipAuth) {
@@ -317,6 +316,215 @@ export const AuthAPI = {
   },
   async getCode(shopId: string, sessionId: string) {
     return api<{ success: boolean; code: any }>(`/api/v1/shops/${encodeURIComponent(shopId)}/code/${encodeURIComponent(sessionId)}`, { method: 'GET' })
+  },
+  users: {
+    async list(params: { page?: number; limit?: number; q?: string; role?: string; status?: string; from?: string; to?: string } = {}) {
+      try {
+        const qp = new URLSearchParams();
+        if (params.page) qp.set('page', String(params.page));
+        if (params.limit) qp.set('limit', String(params.limit));
+        if (params.q) qp.set('q', params.q);
+        if (params.role) qp.set('role', params.role);
+        if (params.status) qp.set('status', params.status);
+        if (params.from) qp.set('from', params.from);
+        if (params.to) qp.set('to', params.to);
+        const qs = qp.toString();
+        const res = await api<{ success: boolean; users: any[]; total?: number; page?: number; limit?: number }>(
+          `/api/v1/admin/users${qs ? `?${qs}` : ''}`,
+          { method: 'GET' }
+        );
+        const users = (res?.users || []).map((u: any) => ({
+          _id: String(u._id || u.id),
+          name: u?.profile?.fullName || u?.username || u?.email || 'User',
+          username: u?.username,
+          email: u?.email || '',
+          role: u?.role || 'user',
+          status: u?.isBanned ? 'deactivated' : 'active',
+          isBanned: !!u?.isBanned,
+          premiumUntil: u?.premiumUntil || null,
+        }));
+        return { success: true, users, total: res?.total ?? 0, page: res?.page ?? (params.page ?? 1), limit: res?.limit ?? (params.limit ?? 20) } as any;
+      } catch (e: any) {
+        if ((e?.status === 404) || String(e?.message || '').toLowerCase().includes('not found')) {
+          return { success: false as any, users: [], total: 0, page: params.page ?? 1, limit: params.limit ?? 20 } as any;
+        }
+        throw e;
+      }
+    },
+    async ban(id: string, ban: boolean, until?: string) {
+      return api<{ success: boolean }>(`/api/v1/admin/users/${id}/ban`, {
+        method: 'POST',
+        body: JSON.stringify({ ban, until }),
+      });
+    },
+    async notify(id: string, channel: 'email' | 'sms', message: string) {
+      return api<{ success: boolean }>(`/api/v1/admin/users/${id}/notify`, {
+        method: 'POST',
+        body: JSON.stringify({ channel, message }),
+      });
+    },
+  },
+  shops: {
+    async list(params: { page?: number; limit?: number; q?: string; status?: string; from?: string; to?: string } = {}) {
+      try {
+        const qp = new URLSearchParams();
+        if (params.page) qp.set('page', String(params.page));
+        if (params.limit) qp.set('limit', String(params.limit));
+        if (params.q) qp.set('q', params.q);
+        if (params.status) qp.set('status', params.status);
+        if (params.from) qp.set('from', params.from);
+        if (params.to) qp.set('to', params.to);
+        const qs = qp.toString();
+        return await api<{ success: boolean; shops: any[]; total?: number; page?: number; limit?: number }>(
+          `/api/v1/admin/shops${qs ? `?${qs}` : ''}`,
+          { method: 'GET' }
+        );
+      } catch (e: any) {
+        if ((e?.status === 404) || String(e?.message || '').toLowerCase().includes('not found')) {
+          return { success: false as any, shops: [], total: 0, page: params.page ?? 1, limit: params.limit ?? 20 } as any;
+        }
+        throw e;
+      }
+    },
+    async approve(id: string, approve: boolean = true) {
+      return api<{ success: boolean }>(`/api/v1/admin/shops/${id}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ approve }),
+      });
+    },
+    async ban(id: string, ban: boolean) {
+      return api<{ success: boolean }>(`/api/v1/admin/shops/${id}/ban`, {
+        method: 'POST',
+        body: JSON.stringify({ ban }),
+      });
+    },
+  },
+  analytics: {
+    async summary() {
+      return api<{ success: boolean; summary: any }>(`/api/v1/admin/analytics/summary`, { method: 'GET' });
+    },
+    async timeseries(params: { range?: string } = {}) {
+      const qp = new URLSearchParams();
+      if (params.range) qp.set('range', params.range);
+      const qs = qp.toString();
+      return api<{ success: boolean; series: any[] }>(`/api/v1/admin/analytics/timeseries${qs ? `?${qs}` : ''}`, { method: 'GET' });
+    },
+  },
+  payouts: {
+    async list(params: { page?: number; limit?: number; status?: string; q?: string; from?: string; to?: string } = {}) {
+      try {
+        const qp = new URLSearchParams();
+        if (params.page) qp.set('page', String(params.page));
+        if (params.limit) qp.set('limit', String(params.limit));
+        if (params.status) qp.set('status', params.status);
+        if (params.q) qp.set('q', params.q);
+        if (params.from) qp.set('from', params.from);
+        if (params.to) qp.set('to', params.to);
+        const qs = qp.toString();
+        return await api<{ success: boolean; payouts: any[]; total?: number; page?: number; limit?: number; sum?: number }>(
+          `/api/v1/admin/payouts${qs ? `?${qs}` : ''}`,
+          { method: 'GET' }
+        );
+      } catch (e: any) {
+        if ((e?.status === 404) || String(e?.message || '').toLowerCase().includes('not found')) {
+          return { success: false as any, payouts: [], total: 0, page: params.page ?? 1, limit: params.limit ?? 20, sum: 0 } as any;
+        }
+        throw e;
+      }
+    },
+    async approve(id: string) {
+      return api<{ success: boolean }>(`/api/v1/admin/payouts/${id}/approve`, { method: 'POST' });
+    },
+    async fail(id: string, reason?: string) {
+      return api<{ success: boolean }>(`/api/v1/admin/payouts/${id}/fail`, { method: 'POST', body: JSON.stringify({ reason }) });
+    },
+  },
+  orders: {
+    async list(params: { page?: number; limit?: number; status?: string; q?: string; from?: string; to?: string } = {}) {
+      try {
+        const qp = new URLSearchParams();
+        if (params.page) qp.set('page', String(params.page));
+        if (params.limit) qp.set('limit', String(params.limit));
+        if (params.status) qp.set('status', params.status);
+        if (params.q) qp.set('q', params.q);
+        if (params.from) qp.set('from', params.from);
+        if (params.to) qp.set('to', params.to);
+        const qs = qp.toString();
+        return await api<{ success: boolean; orders: any[]; total?: number; page?: number; limit?: number; sum?: number }>(
+          `/api/v1/admin/orders${qs ? `?${qs}` : ''}`,
+          { method: 'GET' }
+        );
+      } catch (e: any) {
+        if ((e?.status === 404) || String(e?.message || '').toLowerCase().includes('not found')) {
+          return { success: false as any, orders: [], total: 0, page: params.page ?? 1, limit: params.limit ?? 20, sum: 0 } as any;
+        }
+        throw e;
+      }
+    },
+  },
+  contacts: {
+    async list(params: { page?: number; limit?: number; q?: string } = {}) {
+      try {
+        const qp = new URLSearchParams();
+        if (params.page) qp.set('page', String(params.page));
+        if (params.limit) qp.set('limit', String(params.limit));
+        if (params.q) qp.set('q', params.q);
+        const qs = qp.toString();
+        return await api<{ success: boolean; contacts: any[]; total?: number; page?: number; limit?: number }>(
+          `/api/v1/admin/contacts${qs ? `?${qs}` : ''}`,
+          { method: 'GET' }
+        );
+      } catch (e: any) {
+        if ((e?.status === 404) || String(e?.message || '').toLowerCase().includes('not found')) {
+          return { success: false as any, contacts: [], total: 0, page: params.page ?? 1, limit: params.limit ?? 20 } as any;
+        }
+        throw e;
+      }
+    },
+  },
+  delivery: {
+    async partners(params: { page?: number; limit?: number; q?: string } = {}) {
+      try {
+        const qp = new URLSearchParams();
+        if (params.page) qp.set('page', String(params.page));
+        if (params.limit) qp.set('limit', String(params.limit));
+        if (params.q) qp.set('q', params.q);
+        const qs = qp.toString();
+        return await api<{ success: boolean; partners: any[]; total?: number; page?: number; limit?: number }>(
+          `/api/v1/admin/delivery/partners${qs ? `?${qs}` : ''}`,
+          { method: 'GET' }
+        );
+      } catch (e: any) {
+        if ((e?.status === 404) || String(e?.message || '').toLowerCase().includes('not found')) {
+          return { success: false as any, partners: [], total: 0, page: params.page ?? 1, limit: params.limit ?? 20 } as any;
+        }
+        throw e;
+      }
+    },
+  },
+  web3: {
+    async stats() {
+      return api<{ success: boolean; stats: any }>(`/api/v1/admin/web3/stats`, { method: 'GET' });
+    },
+    async holders(params: { page?: number; limit?: number; q?: string; token?: string } = {}) {
+      try {
+        const qp = new URLSearchParams();
+        if (params.page) qp.set('page', String(params.page));
+        if (params.limit) qp.set('limit', String(params.limit));
+        if (params.q) qp.set('q', params.q);
+        if (params.token) qp.set('token', params.token);
+        const qs = qp.toString();
+        return await api<{ success: boolean; holders: any[]; total?: number; page?: number; limit?: number }>(
+          `/api/v1/admin/web3/holders${qs ? `?${qs}` : ''}`,
+          { method: 'GET' }
+        );
+      } catch (e: any) {
+        if ((e?.status === 404) || String(e?.message || '').toLowerCase().includes('not found')) {
+          return { success: false as any, holders: [], total: 0, page: params.page ?? 1, limit: params.limit ?? 20 } as any;
+        }
+        throw e;
+      }
+    },
   },
 };
 
@@ -1121,5 +1329,153 @@ export const ChatAPI = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+};
+
+// Admin API (superadmin dashboard)
+export const AdminAPI = {
+  users: {
+    async list(params: { page?: number; limit?: number; q?: string; role?: string; status?: string; from?: string; to?: string } = {}) {
+      try {
+        const qp = new URLSearchParams();
+        if (params.page) qp.set('page', String(params.page));
+        if (params.limit) qp.set('limit', String(params.limit));
+        if (params.q) qp.set('q', params.q);
+        if (params.role) qp.set('role', params.role);
+        if (params.status) qp.set('status', params.status);
+        if (params.from) qp.set('from', params.from);
+        if (params.to) qp.set('to', params.to);
+        const qs = qp.toString();
+        return await api<{ success: boolean; users: any[]; total?: number; page?: number; limit?: number }>(
+          `/api/v1/admin/users${qs ? `?${qs}` : ''}`,
+          { method: 'GET' }
+        );
+      } catch (e: any) {
+        if ((e?.status === 404) || String(e?.message || '').toLowerCase().includes('not found')) {
+          return { success: false as any, users: [], total: 0, page: params.page ?? 1, limit: params.limit ?? 20 } as any;
+        }
+        throw e;
+      }
+    },
+    async ban(id: string, ban: boolean, until?: string) {
+      return api<{ success: boolean }>(`/api/v1/admin/users/${id}/ban`, {
+        method: 'POST',
+        body: JSON.stringify({ ban, until }),
+      });
+    },
+    async notify(id: string, channel: 'email'|'sms', message: string) {
+      return api<{ success: boolean }>(`/api/v1/admin/users/${id}/notify`, {
+        method: 'POST',
+        body: JSON.stringify({ channel, message }),
+      });
+    },
+  },
+  shops: {
+    async list(params: { page?: number; limit?: number; q?: string; status?: string; from?: string; to?: string } = {}) {
+      const qp = new URLSearchParams();
+      if (params.page) qp.set('page', String(params.page));
+      if (params.limit) qp.set('limit', String(params.limit));
+      if (params.q) qp.set('q', params.q);
+      if (params.status) qp.set('status', params.status);
+      if (params.from) qp.set('from', params.from);
+      if (params.to) qp.set('to', params.to);
+      const qs = qp.toString();
+      return api<{ success: boolean; shops: any[]; total?: number; page?: number; limit?: number }>(
+        `/api/v1/admin/shops${qs ? `?${qs}` : ''}`,
+        { method: 'GET' }
+      );
+    },
+    async approve(id: string, approve: boolean = true) {
+      return api<{ success: boolean }>(`/api/v1/admin/shops/${id}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({ approve }),
+      });
+    },
+    async ban(id: string, ban: boolean) {
+      return api<{ success: boolean }>(`/api/v1/admin/shops/${id}/ban`, {
+        method: 'POST',
+        body: JSON.stringify({ ban }),
+      });
+    },
+  },
+  analytics: {
+    async summary() {
+      return api<{ success: boolean; summary: any }>(`/api/v1/admin/analytics/summary`, { method: 'GET' });
+    },
+    async timeseries(params: { range?: string } = {}) {
+      const qp = new URLSearchParams();
+      if (params.range) qp.set('range', params.range);
+      const qs = qp.toString();
+      return api<{ success: boolean; series: any[] }>(`/api/v1/admin/analytics/timeseries${qs ? `?${qs}` : ''}`, { method: 'GET' });
+    },
+  },
+  payouts: {
+    async list(params: { page?: number; limit?: number; status?: string; q?: string; from?: string; to?: string } = {}) {
+      const qp = new URLSearchParams();
+      if (params.page) qp.set('page', String(params.page));
+      if (params.limit) qp.set('limit', String(params.limit));
+      if (params.status) qp.set('status', params.status);
+      if (params.q) qp.set('q', params.q);
+      if (params.from) qp.set('from', params.from);
+      if (params.to) qp.set('to', params.to);
+      const qs = qp.toString();
+      return api<{ success: boolean; payouts: any[]; total?: number; page?: number; limit?: number; sum?: number }>(
+        `/api/v1/admin/payouts${qs ? `?${qs}` : ''}`,
+        { method: 'GET' }
+      );
+    },
+    async approve(id: string) {
+      return api<{ success: boolean }>(`/api/v1/admin/payouts/${id}/approve`, { method: 'POST' });
+    },
+    async fail(id: string, reason?: string) {
+      return api<{ success: boolean }>(`/api/v1/admin/payouts/${id}/fail`, { method: 'POST', body: JSON.stringify({ reason }) });
+    },
+  },
+  orders: {
+    async list(params: { page?: number; limit?: number; status?: string; q?: string; from?: string; to?: string } = {}) {
+      const qp = new URLSearchParams();
+      if (params.page) qp.set('page', String(params.page));
+      if (params.limit) qp.set('limit', String(params.limit));
+      if (params.status) qp.set('status', params.status);
+      if (params.q) qp.set('q', params.q);
+      if (params.from) qp.set('from', params.from);
+      if (params.to) qp.set('to', params.to);
+      const qs = qp.toString();
+      return api<{ success: boolean; orders: any[]; total?: number; page?: number; limit?: number; sum?: number }>(
+        `/api/v1/admin/orders${qs ? `?${qs}` : ''}`,
+        { method: 'GET' }
+      );
+    },
+  },
+  contacts: {
+    async list(params: { page?: number; limit?: number; q?: string } = {}) {
+      const qp = new URLSearchParams();
+      if (params.page) qp.set('page', String(params.page));
+      if (params.limit) qp.set('limit', String(params.limit));
+      if (params.q) qp.set('q', params.q);
+      const qs = qp.toString();
+      return api<{ success: boolean; contacts: any[]; total?: number; page?: number; limit?: number }>(
+        `/api/v1/admin/contacts${qs ? `?${qs}` : ''}`,
+        { method: 'GET' }
+      );
+    },
+  },
+  delivery: {
+    async partners(params: { page?: number; limit?: number; q?: string } = {}) {
+      const qp = new URLSearchParams();
+      if (params.page) qp.set('page', String(params.page));
+      if (params.limit) qp.set('limit', String(params.limit));
+      if (params.q) qp.set('q', params.q);
+      const qs = qp.toString();
+      return api<{ success: boolean; partners: any[]; total?: number; page?: number; limit?: number }>(
+        `/api/v1/admin/delivery/partners${qs ? `?${qs}` : ''}`,
+        { method: 'GET' }
+      );
+    },
+  },
+  web3: {
+    async stats() {
+      return api<{ success: boolean; stats: any }>(`/api/v1/admin/web3/stats`, { method: 'GET' });
+    },
   },
 };

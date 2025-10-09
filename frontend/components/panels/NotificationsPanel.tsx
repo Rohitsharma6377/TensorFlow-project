@@ -62,7 +62,11 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
   };
 
   const nameOf = (n: NotificationItem) => (n.actor?.name || n.shop?.name || "Someone");
-  const avatarOf = (n: NotificationItem) => (n.actor?.avatar as string | undefined);
+  const avatarOf = (n: NotificationItem) => {
+    const a = (n.actor && (n.actor.avatar || n.actor.photo || n.actor.image)) as string | undefined;
+    const s = (n.shop && ((n.shop.logo && (n.shop.logo.url || n.shop.logo)) || n.shop.avatar)) as string | undefined;
+    return a || s || undefined;
+  };
 
   const go = async (n: NotificationItem) => {
     try { await dispatch(markRead(n._id)).unwrap(); } catch {}
@@ -86,7 +90,7 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
 
       <div
         className={cn(
-          "fixed top-0 right-0 h-screen w-full max-w-md bg-white dark:bg-gray-900 border-l shadow-xl transition-transform duration-200 ease-out",
+          "fixed top-0 right-0 h-screen w-full max-w-md bg-white/95 dark:bg-gray-900/95 border-l shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-gray-900/80 transition-transform duration-200 ease-out",
           open ? "translate-x-0" : "translate-x-full"
         )}
         style={{ zIndex: 2147483647, transform: open ? 'translateX(0)' as const : 'translateX(100%)' as const }}
@@ -94,18 +98,18 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
         role="dialog"
         aria-label="Notifications"
       >
-        <div className="flex items-center justify-between border-b px-4 py-3 bg-white/95 dark:bg-gray-900/95 backdrop-blur">
-          <h2 className="text-base font-semibold">Notifications</h2>
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <h2 className="text-lg font-semibold tracking-tight">Notifications</h2>
           <div className="flex items-center gap-2">
             <button
               onClick={() => dispatch(markAllRead())}
-              className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/70"
+              className="text-xs px-2.5 py-1.5 rounded-md border bg-white hover:bg-slate-50 dark:bg-gray-800 dark:hover:bg-gray-700"
             >
               Mark all read
             </button>
             <button
               onClick={onClose}
-              className="p-1 rounded hover:bg-muted"
+              className="p-1 rounded-md border hover:bg-slate-50 dark:border-gray-700 dark:hover:bg-gray-800"
               aria-label="Close notifications"
             >
               <XMarkIcon className="h-5 w-5" />
@@ -120,7 +124,7 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
             <div className="text-center text-sm text-muted-foreground space-y-3">
               <div>No notifications yet.</div>
               <button
-                className="inline-flex items-center px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs"
+                className="inline-flex items-center px-3 py-1.5 rounded-md bg-emerald-600 text-white text-xs shadow-sm hover:bg-emerald-700"
                 onClick={() => dispatch(seedNotifications(mockNotifications))}
               >
                 Load sample notifications
@@ -128,58 +132,72 @@ export function NotificationsPanel({ open, onClose }: NotificationsPanelProps) {
             </div>
           )}
 
-          {(['today','yesterday','earlier'] as const).map((k) => (
-            <div key={k}>
-              <div className="text-[11px] tracking-wide font-semibold uppercase text-muted-foreground mb-2">{k}</div>
-              <div className="space-y-2.5">
-                {groups[k].length === 0 && (
-                  <div className="text-xs text-muted-foreground">No notifications</div>
-                )}
-                {groups[k].map((n) => (
-                  <div
-                    key={n._id}
-                    className={cn(
-                      "flex items-start gap-3 p-3 rounded-md cursor-pointer border bg-white/80 dark:bg-gray-900/80 backdrop-blur",
-                      !n.readAt ? "ring-1 ring-primary/20" : "hover:bg-muted"
-                    )}
-                    onClick={() => go(n)}
-                  >
-                    {/* Avatar */}
-                    <div className="h-9 w-9 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-800 flex items-center justify-center shrink-0">
-                      {avatarOf(n) ? (
-                        <Image src={avatarOf(n)!} alt={nameOf(n)} width={36} height={36} className="h-full w-full object-cover" />
-                      ) : (
-                        <BellIcon className="h-5 w-5 text-muted-foreground" />
+          {(() => {
+            const sections: Array<{ key: 'today'|'yesterday'|'earlier'; title: string; list: NotificationItem[] }> = [
+              { key: 'today', title: 'Today', list: groups.today },
+              { key: 'yesterday', title: 'Yesterday', list: groups.yesterday },
+              { key: 'earlier', title: 'Earlier', list: groups.earlier },
+            ];
+            const visible = sections.filter(s => s.list.length > 0);
+            // If nothing visible but items exist, show a crisp note instead of pale placeholders
+            if (visible.length === 0 && items.length > 0) {
+              return (
+                <div className="text-sm text-slate-600 dark:text-slate-400">No recent notifications.</div>
+              );
+            }
+            return visible.map((sec) => (
+              <div key={sec.key}>
+                <div className="text-[11px] tracking-wide font-semibold uppercase text-slate-600 dark:text-slate-400 mb-2">{sec.title}</div>
+                <div className="space-y-2.5">
+                  {sec.list.map((n) => (
+                    <div
+                      key={n._id}
+                      className={cn(
+                        "flex items-start gap-3 p-3 rounded-lg cursor-pointer border bg-white/80 dark:bg-gray-900/80 backdrop-blur transition-colors",
+                        !n.readAt ? "ring-1 ring-emerald-300/40" : "hover:bg-slate-50 dark:hover:bg-gray-800"
                       )}
-                    </div>
-
-                    {/* Content */}
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm leading-5">
-                        <button
-                          className="font-medium hover:underline"
-                          onClick={(e) => { e.stopPropagation(); if (n.shop) router.push(`/shops/${typeof n.shop === 'string' ? n.shop : n.shop._id}`); }}
-                          aria-label="Open shop"
-                        >
-                          {nameOf(n)}
-                        </button>{' '}
-                        {n.type === 'follow' && 'followed your shop'}
-                        {n.type === 'unfollow' && 'unfollowed your shop'}
-                        {n.type === 'post_new' && 'posted a new product'}
-                        {n.type === 'post_like' && 'liked your post'}
-                        {n.type === 'post_comment' && 'commented on your post'}
-                        {n.type === 'story_new' && 'added a new story'}
-                        {n.type === 'story_like' && 'liked your story'}
-                        {n.message ? <span className="text-muted-foreground"> — {n.message}</span> : null}
+                      onClick={() => go(n)}
+                    >
+                      {/* Avatar */}
+                      <div className="h-10 w-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-800 flex items-center justify-center shrink-0 ring-1 ring-black/5 dark:ring-white/10">
+                        {avatarOf(n) ? (
+                          <Image src={avatarOf(n)!} alt={nameOf(n)} width={40} height={40} className="h-full w-full object-cover" />
+                        ) : (
+                          <BellIcon className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+                        )}
                       </div>
-                      <div className="text-[11px] text-muted-foreground mt-0.5">{relTime(new Date(n.createdAt || Date.now()))}</div>
+
+                      {/* Content */}
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm leading-5">
+                          <button
+                            className="font-medium hover:underline text-slate-900 dark:text-slate-100"
+                            onClick={(e) => { e.stopPropagation(); if (n.shop) router.push(`/shops/${typeof n.shop === 'string' ? n.shop : n.shop._id}`); }}
+                            aria-label="Open shop"
+                          >
+                            {nameOf(n)}
+                          </button>{' '}
+                          {n.type === 'follow' && 'followed your shop'}
+                          {n.type === 'unfollow' && 'unfollowed your shop'}
+                          {n.type === 'post_new' && 'posted a new product'}
+                          {n.type === 'post_like' && 'liked your post'}
+                          {n.type === 'post_comment' && 'commented on your post'}
+                          {n.type === 'story_new' && 'added a new story'}
+                          {n.type === 'story_like' && 'liked your story'}
+                          {n.message ? <span className="text-slate-500 dark:text-slate-400"> — {n.message}</span> : null}
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
+                          <span>{relTime(new Date(n.createdAt || Date.now()))}</span>
+                          {!n.readAt && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">New</span>}
+                        </div>
+                      </div>
+                      {!n.readAt && <span className="ml-2 h-2.5 w-2.5 rounded-full bg-emerald-500 mt-1" />}
                     </div>
-                    {!n.readAt && <span className="ml-2 h-2.5 w-2.5 rounded-full bg-primary mt-1" />}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ));
+          })()}
         </div>
       </div>
     </>
