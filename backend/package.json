@@ -27,7 +27,8 @@
     "start": "node index.js",
     "lint": "echo 'no lint configured'",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "seed": "node ./src/scripts/seed.js"
+    "seed": "node ./src/scripts/seed.js",
+    "create-test-seller": "node ./src/scripts/createTestSeller.js"
   },
   "dependencies": {
     "@tensorflow/tfjs": "^4.20.0",

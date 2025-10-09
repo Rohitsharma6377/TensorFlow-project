@@ -32,6 +32,50 @@ router.get('/test', (req, res) => {
   });
 });
 
+// Debug endpoint to check available sellers
+router.get('/debug/sellers', auth(['admin', 'superadmin']), requireAdmin, asyncHandler(async (req, res) => {
+  const Shop = require('../models/Shop');
+  
+  // Get shops with their owners
+  const shops = await Shop.find({})
+    .populate('owner', 'username email profile.fullName walletBalance')
+    .limit(10)
+    .lean();
+  
+  // Get users with seller role
+  const sellers = await User.find({ role: 'seller' })
+    .select('username email profile.fullName walletBalance role')
+    .limit(10)
+    .lean();
+  
+  res.json({
+    success: true,
+    data: {
+      shops: shops.map(s => ({
+        shopId: s._id,
+        shopName: s.name,
+        owner: s.owner ? {
+          userId: s.owner._id,
+          username: s.owner.username,
+          email: s.owner.email,
+          fullName: s.owner.profile?.fullName,
+          walletBalance: s.owner.walletBalance || 0
+        } : null
+      })),
+      sellers: sellers.map(u => ({
+        userId: u._id,
+        username: u.username,
+        email: u.email,
+        fullName: u.profile?.fullName,
+        walletBalance: u.walletBalance || 0,
+        role: u.role
+      })),
+      totalShops: shops.length,
+      totalSellers: sellers.length
+    }
+  });
+}));
+
 // Ban/Unban user
 router.post('/users/:id/ban', auth(['admin', 'superadmin']), requireAdmin, [body('ban').isBoolean()], asyncHandler(async (req, res) => {
   const { ban } = req.body;
@@ -329,10 +373,23 @@ router.post('/wallet', auth(['admin', 'superadmin']), requireAdmin, [
     }
 
     // Find the seller/user
-    const seller = await User.findById(sellerId);
+    let seller = await User.findById(sellerId);
     console.log(`[WALLET API] User lookup result:`, seller ? 'found' : 'not found');
+    
+    // If user not found, try to find by shop owner
     if (!seller) {
-      return res.status(404).json({ success: false, message: 'Seller not found' });
+      console.log(`[WALLET API] User not found, checking if sellerId is a shop ID...`);
+      const Shop = require('../models/Shop');
+      const shop = await Shop.findById(sellerId).populate('owner');
+      if (shop && shop.owner) {
+        console.log(`[WALLET API] Found shop, using owner:`, shop.owner._id);
+        seller = shop.owner;
+      }
+    }
+    
+    if (!seller) {
+      console.log(`[WALLET API] Neither user nor shop owner found for ID: ${sellerId}`);
+      return res.status(404).json({ success: false, message: 'Seller not found. Please check if the user exists in the database.' });
     }
 
     // Calculate new balance
@@ -347,7 +404,7 @@ router.post('/wallet', auth(['admin', 'superadmin']), requireAdmin, [
 
     // Update seller's wallet balance
     const updatedSeller = await User.findByIdAndUpdate(
-      sellerId,
+      seller._id,
       { walletBalance: newBalance },
       { new: true }
     ).select('-passwordHash');
@@ -355,25 +412,17 @@ router.post('/wallet', auth(['admin', 'superadmin']), requireAdmin, [
     // Create a transaction record (you might want to create a WalletTransaction model)
     // For now, we'll create a notification as audit trail
     await Notification.create({
-      user: sellerId,
-      title: 'Wallet Update',
-      body: `Admin ${type === 'add' ? 'added' : 'deducted'} $${numAmount} ${type === 'add' ? 'to' : 'from'} your wallet. Reason: ${reason}`,
-      meta: {
-        type: 'wallet_transaction',
-        adminId: req.user.id,
-        transactionType: type,
-        amount: numAmount,
-        reason: reason,
-        previousBalance: currentBalance,
-        newBalance: newBalance
-      }
+      user: seller._id,
+      type: 'wallet_transaction',
+      actor: req.user.id,
+      message: `Admin ${type === 'add' ? 'added' : 'deducted'} $${numAmount} ${type === 'add' ? 'to' : 'from'} your wallet. Reason: ${reason}`
     });
 
     res.json({
       success: true,
       message: `Successfully ${type === 'add' ? 'added' : 'deducted'} $${numAmount} ${type === 'add' ? 'to' : 'from'} seller wallet`,
       data: {
-        sellerId,
+        sellerId: seller._id,
         type,
         amount: numAmount,
         reason,
@@ -389,7 +438,113 @@ router.post('/wallet', auth(['admin', 'superadmin']), requireAdmin, [
   }
 }));
 
-// Get seller wallet details
+// Get comprehensive seller details
+router.get('/seller-details', auth(['admin', 'superadmin']), requireAdmin, asyncHandler(async (req, res) => {
+  const { sellerId } = req.query;
+
+  if (!sellerId) {
+    return res.status(400).json({ success: false, message: 'sellerId parameter required' });
+  }
+
+  try {
+    const seller = await User.findById(sellerId).select('walletBalance email username profile role createdAt');
+    if (!seller) {
+      return res.status(404).json({ success: false, message: 'Seller not found' });
+    }
+
+    // Get seller's shop(s)
+    const Shop = require('../models/Shop');
+    const shops = await Shop.find({ owner: sellerId }).select('name slug status isVerified createdAt').lean();
+
+    // Get seller's products count
+    const Product = require('../models/Product');
+    const totalProducts = await Product.countDocuments({ 'shop': { $in: shops.map(s => s._id) } });
+
+    // Get seller's orders and revenue
+    const Order = require('../models/Order');
+    const orders = await Order.find({ 'items.shop': { $in: shops.map(s => s._id) } }).lean();
+    const totalRevenue = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+    const totalOrders = orders.length;
+
+    // Get seller's subscription details
+    const Subscription = require('../models/Subscription');
+    const subscription = await Subscription.findOne({ user: sellerId }).sort({ createdAt: -1 }).lean();
+
+    // Calculate renewal date and notification status
+    let renewalInfo = null;
+    if (subscription) {
+      const renewalDate = new Date(subscription.expiresAt || subscription.renewAt);
+      const today = new Date();
+      const daysUntilRenewal = Math.ceil((renewalDate - today) / (1000 * 60 * 60 * 24));
+      const shouldNotify = daysUntilRenewal <= 32 && daysUntilRenewal > 0;
+
+      renewalInfo = {
+        plan: subscription.tier || subscription.plan || 'basic',
+        monthlyAmount: subscription.amount || 0,
+        renewalDate: renewalDate.toISOString(),
+        daysUntilRenewal,
+        shouldNotify,
+        status: daysUntilRenewal <= 0 ? 'expired' : 'active'
+      };
+    }
+
+    // Get recent wallet transactions
+    const transactions = await Notification.find({
+      user: sellerId,
+      type: 'wallet_transaction'
+    }).sort({ createdAt: -1 }).limit(10).lean();
+
+    const formattedTransactions = transactions.map(t => ({
+      id: String(t._id),
+      type: t.message?.includes('added') ? 'add' : 'deduct',
+      amount: 0,
+      reason: t.message || '',
+      timestamp: t.createdAt,
+      adminId: t.actor
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        seller: {
+          id: sellerId,
+          username: seller.username,
+          email: seller.email,
+          fullName: seller.profile?.fullName || seller.username,
+          walletBalance: seller.walletBalance || 0,
+          joinedDate: seller.createdAt,
+          role: seller.role
+        },
+        business: {
+          totalShops: shops.length,
+          totalProducts,
+          totalOrders,
+          totalRevenue,
+          shops: shops.map(s => ({
+            id: s._id,
+            name: s.name,
+            slug: s.slug,
+            status: s.status,
+            verified: s.isVerified,
+            createdAt: s.createdAt
+          }))
+        },
+        subscription: renewalInfo,
+        wallet: {
+          balance: seller.walletBalance || 0,
+          currency: 'USD',
+          transactions: formattedTransactions
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('[SELLER DETAILS API] Error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}));
+
+// Get seller wallet details (legacy endpoint)
 router.get('/wallet', auth(['admin', 'superadmin']), requireAdmin, asyncHandler(async (req, res) => {
   const { sellerId } = req.query;
 
@@ -406,16 +561,16 @@ router.get('/wallet', auth(['admin', 'superadmin']), requireAdmin, asyncHandler(
     // Get recent wallet transactions from notifications
     const transactions = await Notification.find({
       user: sellerId,
-      'meta.type': 'wallet_transaction'
+      type: 'wallet_transaction'
     }).sort({ createdAt: -1 }).limit(10).lean();
 
     const formattedTransactions = transactions.map(t => ({
       id: String(t._id),
-      type: t.meta?.transactionType || 'unknown',
-      amount: t.meta?.amount || 0,
-      reason: t.meta?.reason || '',
+      type: t.message?.includes('added') ? 'add' : 'deduct',
+      amount: 0, // We'll extract from message if needed
+      reason: t.message || '',
       timestamp: t.createdAt,
-      adminId: t.meta?.adminId
+      adminId: t.actor
     }));
 
     res.json({
@@ -472,14 +627,9 @@ router.post('/plan', auth(['admin', 'superadmin']), requireAdmin, [
     // Create audit trail notification
     await Notification.create({
       user: sellerId,
-      title: 'Plan Limit Updated',
-      body: `Admin set your ${type} limit to ${limit}`,
-      meta: {
-        type: 'plan_update',
-        adminId: req.user.id,
-        limitType: type,
-        limitValue: limit
-      }
+      type: 'plan_update',
+      actor: req.user.id,
+      message: `Admin set your ${type} limit to ${limit}`
     });
 
     res.json({
@@ -540,6 +690,183 @@ router.get('/plan', auth(['admin', 'superadmin']), requireAdmin, asyncHandler(as
 
   } catch (error) {
     console.error('[PLAN API] Error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}));
+
+// Send renewal notification to seller
+router.post('/notify-renewal', auth(['admin', 'superadmin']), requireAdmin, [
+  body('sellerId').isString().withMessage('sellerId is required'),
+  body('message').optional().isString(),
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+  }
+
+  const { sellerId, message } = req.body;
+
+  try {
+    const seller = await User.findById(sellerId);
+    if (!seller) {
+      return res.status(404).json({ success: false, message: 'Seller not found' });
+    }
+
+    // Get subscription details
+    const Subscription = require('../models/Subscription');
+    const subscription = await Subscription.findOne({ user: sellerId }).sort({ createdAt: -1 });
+    
+    if (!subscription) {
+      return res.status(404).json({ success: false, message: 'No subscription found for seller' });
+    }
+
+    const renewalDate = new Date(subscription.expiresAt || subscription.renewAt);
+    const today = new Date();
+    const daysUntilRenewal = Math.ceil((renewalDate - today) / (1000 * 60 * 60 * 24));
+
+    const defaultMessage = `Your ${subscription.tier || subscription.plan || 'subscription'} plan will expire in ${daysUntilRenewal} days on ${renewalDate.toDateString()}. Please renew your subscription to continue using our services. Monthly amount: $${subscription.amount || 0}`;
+
+    // Create notification
+    await Notification.create({
+      user: sellerId,
+      type: 'subscription_renewal',
+      actor: req.user.id,
+      message: message || defaultMessage
+    });
+
+    res.json({
+      success: true,
+      message: 'Renewal notification sent successfully',
+      data: {
+        sellerId,
+        renewalDate: renewalDate.toISOString(),
+        daysUntilRenewal,
+        planType: subscription.tier || subscription.plan,
+        monthlyAmount: subscription.amount || 0
+      }
+    });
+
+  } catch (error) {
+    console.error('[NOTIFY RENEWAL API] Error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}));
+
+// Update seller subscription
+router.post('/subscription', auth(['admin', 'superadmin']), requireAdmin, [
+  body('sellerId').isString().withMessage('sellerId is required'),
+  body('plan').isString().withMessage('plan is required'),
+  body('amount').isFloat({ min: 0 }).withMessage('amount must be a positive number'),
+  body('duration').optional().isInt({ min: 1 }).withMessage('duration must be positive'),
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+  }
+
+  const { sellerId, plan, amount, duration = 30 } = req.body; // default 30 days
+
+  try {
+    const seller = await User.findById(sellerId);
+    if (!seller) {
+      return res.status(404).json({ success: false, message: 'Seller not found' });
+    }
+
+    const Subscription = require('../models/Subscription');
+    
+    // Calculate expiry date
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + duration);
+
+    // Create or update subscription
+    const subscription = await Subscription.findOneAndUpdate(
+      { user: sellerId },
+      {
+        user: sellerId,
+        tier: plan,
+        plan: plan,
+        amount: parseFloat(amount),
+        expiresAt,
+        renewAt: expiresAt,
+        status: 'active'
+      },
+      { upsert: true, new: true }
+    );
+
+    // Create notification
+    await Notification.create({
+      user: sellerId,
+      type: 'subscription_update',
+      actor: req.user.id,
+      message: `Your subscription has been updated to ${plan} plan ($${amount}/month) valid until ${expiresAt.toDateString()}`
+    });
+
+    res.json({
+      success: true,
+      message: 'Subscription updated successfully',
+      data: {
+        sellerId,
+        plan,
+        amount: parseFloat(amount),
+        duration,
+        expiresAt: expiresAt.toISOString(),
+        subscriptionId: subscription._id
+      }
+    });
+
+  } catch (error) {
+    console.error('[SUBSCRIPTION API] Error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+}));
+
+// Get sellers requiring renewal notifications (32 days or less)
+router.get('/renewal-alerts', auth(['admin', 'superadmin']), requireAdmin, asyncHandler(async (req, res) => {
+  try {
+    const Subscription = require('../models/Subscription');
+    const today = new Date();
+    const alertDate = new Date();
+    alertDate.setDate(alertDate.getDate() + 32); // 32 days from now
+
+    const subscriptions = await Subscription.find({
+      $or: [
+        { expiresAt: { $lte: alertDate, $gte: today } },
+        { renewAt: { $lte: alertDate, $gte: today } }
+      ]
+    }).populate('user', 'username email profile.fullName').lean();
+
+    const alerts = subscriptions.map(sub => {
+      const renewalDate = new Date(sub.expiresAt || sub.renewAt);
+      const daysUntilRenewal = Math.ceil((renewalDate - today) / (1000 * 60 * 60 * 24));
+      
+      return {
+        sellerId: sub.user._id,
+        sellerName: sub.user.profile?.fullName || sub.user.username,
+        sellerEmail: sub.user.email,
+        plan: sub.tier || sub.plan || 'basic',
+        monthlyAmount: sub.amount || 0,
+        renewalDate: renewalDate.toISOString(),
+        daysUntilRenewal,
+        urgency: daysUntilRenewal <= 7 ? 'high' : daysUntilRenewal <= 15 ? 'medium' : 'low'
+      };
+    });
+
+    // Sort by urgency (most urgent first)
+    alerts.sort((a, b) => a.daysUntilRenewal - b.daysUntilRenewal);
+
+    res.json({
+      success: true,
+      data: {
+        alerts,
+        total: alerts.length,
+        highUrgency: alerts.filter(a => a.urgency === 'high').length,
+        mediumUrgency: alerts.filter(a => a.urgency === 'medium').length,
+        lowUrgency: alerts.filter(a => a.urgency === 'low').length
+      }
+    });
+
+  } catch (error) {
+    console.error('[RENEWAL ALERTS API] Error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 }));

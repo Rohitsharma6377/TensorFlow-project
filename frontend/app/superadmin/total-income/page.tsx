@@ -16,6 +16,8 @@ import {
 } from "@/store/slice/adminSellersSlice";
 import { AdminAPI, api } from "@/lib/api";
 import BackendTest from "@/components/BackendTest";
+import SellerDetailsPanel from "@/components/SellerDetailsPanel";
+import RenewalAlertsPanel from "@/components/RenewalAlertsPanel";
 
 function exportCSV(rows: any[], filename: string) {
   const headers = ['_id','shop','amount','status','createdAt'];
@@ -46,16 +48,17 @@ export default function SuperAdminTotalIncomePage() {
     walletError,
     planError
   } = useAppSelector((s) => s.adminSellers);
-  
   // Local UI state
   const [search, setSearch] = useState<string>(q || "");
   const [rangeFrom, setRangeFrom] = useState<string>(from || "");
   const [rangeTo, setRangeTo] = useState<string>(to || "");
   const [selectedSellerId, setSelectedSellerId] = useState<string>("");
-  const [showMoneyModal, setShowMoneyModal] = useState<boolean>(false);
-  const [showPlanModal, setShowPlanModal] = useState<boolean>(false);
+  const [showMoneyModal, setShowMoneyModal] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [showSellerDetails, setShowSellerDetails] = useState(false);
   const [moneyAmount, setMoneyAmount] = useState<string>("");
-  const [moneyType, setMoneyType] = useState<"add" | "deduct">("add");
+  const [moneyType, setMoneyType] = useState<'add' | 'deduct'>('add');
+  const [planType, setPlanType] = useState<string>("");
   const [planLimit, setPlanLimit] = useState<string>("");
 
   // Handle money management using Redux
@@ -134,6 +137,9 @@ export default function SuperAdminTotalIncomePage() {
       {/* Backend Connection Test */}
       <BackendTest />
       
+      {/* Renewal Alerts Section */}
+      <RenewalAlertsPanel />
+      
       {/* Seller Management Section */}
       <Section title="Seller Management" description="Manage seller wallets and plan limits">
         <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -168,6 +174,13 @@ export default function SuperAdminTotalIncomePage() {
             disabled={!selectedSellerId || planStatus === 'loading'}
           >
             Set Plan Limit
+          </button>
+          <button 
+            className="px-3 py-2 rounded-md border text-sm hover:bg-slate-50 dark:hover:bg-gray-800 disabled:opacity-50 bg-blue-50 border-blue-300 text-blue-700" 
+            onClick={() => setShowSellerDetails(true)}
+            disabled={!selectedSellerId}
+          >
+            View Details
           </button>
           <button 
             className="px-2 py-2 rounded-md border text-sm hover:bg-slate-50 dark:hover:bg-gray-800" 
@@ -341,6 +354,14 @@ export default function SuperAdminTotalIncomePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Seller Details Panel */}
+      {showSellerDetails && selectedSellerId && (
+        <SellerDetailsPanel
+          sellerId={selectedSellerId}
+          onClose={() => setShowSellerDetails(false)}
+        />
       )}
     </div>
   );
